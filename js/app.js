@@ -1,6 +1,6 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Collapsible Camera Section, Real-time Distance Monitor & Camera Controls
+ * Features Duplicate Name Prevention & Pre-registration for Un-scanned Members
  * list.daliuren.cc
  */
 
@@ -363,7 +363,7 @@
             <div>
               <div class="font-extrabold text-base text-white flex items-center gap-1.5">
                 ${m.name}
-                <span class="text-[10px] text-sky-400">(${vecCount}筆AI特徵)</span>
+                <span class="text-[10px] text-sky-400">(${vecCount > 0 ? vecCount + '筆AI特徵' : '未掃描人臉'})</span>
               </div>
               <div class="text-xs font-semibold ${isAttended ? 'text-emerald-400' : 'text-slate-400'}">
                 ${isAttended ? `✓ 已出席 (${attRecord.timeStr})` : '未出席'}
@@ -411,7 +411,9 @@
             </div>
             <div>
               <div class="font-bold text-sm text-white">${m.name}</div>
-              <div class="text-[10px] text-sky-400 font-mono">📸 ${vecCount} 筆 128維AI特徵向量</div>
+              <div class="text-[10px] text-sky-400 font-mono">
+                ${vecCount > 0 ? `📸 ${vecCount} 筆 128維AI特徵向量` : '📝 未掃描 (點擊手動點名)'}
+              </div>
             </div>
           </div>
           <button data-del-id="${m.id}" class="btn-del-mem px-3 py-1 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 rounded-lg text-xs font-bold transition-colors">
@@ -586,7 +588,7 @@
     }
   }
 
-  // --- 7. PURE AI FEATURE REGISTRATION MODULE ---
+  // --- 7. MEMBER REGISTRATION (PREVENT DUPLICATES & SUPPORT UN-SCANNED MEMBERS) ---
   async function registerMemberWithAi() {
     const nameInput = $('reg-name-input');
     const name = nameInput ? nameInput.value.trim() : '';
@@ -600,60 +602,67 @@
     const video = $('main-video');
     const statusMsg = $('reg-status-msg');
 
-    if (!video || video.videoWidth === 0) {
-      alert('相機尚未開啟，請先點擊「開啟鏡頭並啟動 AI 辨識」。');
-      return;
-    }
+    // Check duplicate name
+    const existing = registeredMembers.find(m => m.name.trim().toLowerCase() === name.toLowerCase());
 
-    if (statusMsg) statusMsg.textContent = '⏳ AI 正在計算 128 維人臉特徵向量...';
+    let detection = null;
+    let photoDataUrl = '';
 
-    try {
-      let detection = null;
-      if (isAiModelLoaded) {
+    // If camera is open and video is running, attempt face detection
+    if (video && video.videoWidth > 0 && isAiModelLoaded) {
+      if (statusMsg) statusMsg.textContent = '⏳ AI 正在掃描畫面並分析 128 維人臉特徵...';
+      try {
         const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.25 });
         detection = await faceapi.detectSingleFace(video, options)
           .withFaceLandmarks(true)
           .withFaceDescriptor();
+        photoDataUrl = captureSnapshot(video);
+      } catch (err) {
+        console.warn('Face detection error during reg:', err);
       }
+    }
 
-      if (!detection) {
-        if (statusMsg) {
-          statusMsg.textContent = `💡 提示：畫面中未能捕捉到臉部特徵，請對準鏡頭後重試「註冊」。`;
-        }
-        alert(`未捕捉到「${name}」的清晰人臉特徵。\n\n請保持光線明亮，並正對鏡頭後再次點擊「註冊」。`);
-        return;
-      }
-
-      const photoDataUrl = captureSnapshot(video);
-      const existing = registeredMembers.find(m => m.name.toLowerCase() === name.toLowerCase());
-
-      if (existing) {
+    if (existing) {
+      // Member already exists in database
+      if (detection) {
+        // Camera scanned face -> Append feature vector to existing member
         if (!existing.descriptors) existing.descriptors = [];
         existing.descriptors.push(Array.from(detection.descriptor));
         if (photoDataUrl) existing.photoDataUrl = photoDataUrl;
         await addOrUpdateMemberDB(existing);
-        if (statusMsg) statusMsg.textContent = `✓ 已為「${name}」成功追加第 ${existing.descriptors.length} 筆 AI 特徵碼！`;
+        playChimeSound();
+        if (nameInput) nameInput.value = '';
+        if (statusMsg) statusMsg.textContent = `✓ 已成功為「${existing.name}」追加第 ${existing.descriptors.length} 筆 AI 特徵碼！`;
+        await refreshData();
       } else {
-        const newMember = {
-          id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-          name: name,
-          descriptors: [Array.from(detection.descriptor)],
-          photoDataUrl: photoDataUrl,
-          createdAt: new Date().toISOString()
-        };
-        await addOrUpdateMemberDB(newMember);
-        selectedMemberIds.add(newMember.id);
-        if (statusMsg) statusMsg.textContent = `🎉 團員「${name}」AI 特徵註冊成功！`;
+        // No face scanned -> Block duplicate member creation
+        alert(`⚠️ 團員「${existing.name}」已經在名冊中，無法重複註冊同名成員！\n\n如需追加該成員的 AI 特徵碼，請先開啟鏡頭並對準臉部後再次點擊「註冊」。`);
+        if (statusMsg) statusMsg.textContent = `⚠️ 團員「${existing.name}」已存在，未重複建立。`;
       }
-
-      playChimeSound();
-      if (nameInput) nameInput.value = '';
-      await refreshData();
-
-    } catch (err) {
-      console.error('AI reg error:', err);
-      alert('註冊失敗，請確認相機運作正常。');
+      return;
     }
+
+    // New member registration (works even without camera/scanning!)
+    const newMember = {
+      id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      name: name,
+      descriptors: detection ? [Array.from(detection.descriptor)] : [],
+      photoDataUrl: photoDataUrl || '',
+      createdAt: new Date().toISOString()
+    };
+
+    await addOrUpdateMemberDB(newMember);
+    selectedMemberIds.add(newMember.id);
+    playChimeSound();
+
+    if (nameInput) nameInput.value = '';
+    if (statusMsg) {
+      statusMsg.textContent = detection 
+        ? `🎉 團員「${name}」AI 特徵註冊成功！`
+        : `✓ 已成功新增團員「${name}」（可於看板手動點擊打勾，或日後對準鏡頭補登特徵）`;
+    }
+
+    await refreshData();
   }
 
   function captureSnapshot(video) {
