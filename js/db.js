@@ -1,10 +1,10 @@
 /**
  * db.js - IndexedDB storage engine for member profiles & attendance records
- * Supports grouping (分組) and session-based attendance management.
+ * Supports Multi-descriptor (同人多特徵碼採集) for maximum recognition accuracy.
  */
 
 const DB_NAME = 'ListAttendanceDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbInstance = null;
 
@@ -17,33 +17,19 @@ export function initDB() {
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       
-      // Store for registered members
       if (!db.objectStoreNames.contains('members')) {
         const memberStore = db.createObjectStore('members', { keyPath: 'id' });
         memberStore.createIndex('name', 'name', { unique: false });
         memberStore.createIndex('group', 'group', { unique: false });
         memberStore.createIndex('createdAt', 'createdAt', { unique: false });
-      } else {
-        const tx = event.target.transaction;
-        const memberStore = tx.objectStore('members');
-        if (!memberStore.indexNames.contains('group')) {
-          memberStore.createIndex('group', 'group', { unique: false });
-        }
       }
 
-      // Store for attendance logs
       if (!db.objectStoreNames.contains('attendance')) {
         const attendanceStore = db.createObjectStore('attendance', { keyPath: 'id' });
         attendanceStore.createIndex('memberId', 'memberId', { unique: false });
         attendanceStore.createIndex('dateStr', 'dateStr', { unique: false });
         attendanceStore.createIndex('group', 'group', { unique: false });
         attendanceStore.createIndex('timestamp', 'timestamp', { unique: false });
-      } else {
-        const tx = event.target.transaction;
-        const attendanceStore = tx.objectStore('attendance');
-        if (!attendanceStore.indexNames.contains('group')) {
-          attendanceStore.createIndex('group', 'group', { unique: false });
-        }
       }
     };
 
@@ -59,7 +45,7 @@ export function initDB() {
   });
 }
 
-// MEMBER OPERATIONS
+// MEMBER OPERATIONS WITH MULTI-DESCRIPTOR SUPPORT
 export async function getAllMembers() {
   const db = await initDB();
   return new Promise((resolve, reject) => {
@@ -68,9 +54,12 @@ export async function getAllMembers() {
     const request = store.getAll();
     request.onsuccess = () => {
       const members = request.result || [];
-      // Backward compatibility fallback for group
+      // Normalize descriptor data for multi-feature support
       members.forEach(m => {
         if (!m.group) m.group = '第 1 組';
+        if (!m.descriptors || !Array.isArray(m.descriptors) || m.descriptors.length === 0) {
+          m.descriptors = m.descriptor ? [Array.from(m.descriptor)] : [];
+        }
       });
       resolve(members);
     };
@@ -78,24 +67,47 @@ export async function getAllMembers() {
   });
 }
 
-export async function addMember(member) {
+/**
+ * Add or append feature descriptor to existing member or new member
+ */
+export async function addOrAppendMember({ name, group, descriptor, photoDataUrl }) {
   const db = await initDB();
+  const members = await getAllMembers();
+  const trimmedName = name.trim();
+  const trimmedGroup = (group || '第 1 組').trim();
+  const descriptorArray = Array.from(descriptor);
+
+  // Check if member with exact name and group already exists
+  const existingMember = members.find(m => m.name === trimmedName && m.group === trimmedGroup);
+
   return new Promise((resolve, reject) => {
     const tx = db.transaction('members', 'readwrite');
     const store = tx.objectStore('members');
-    
-    const record = {
-      id: member.id || 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-      name: member.name.trim(),
-      group: (member.group || '第 1 組').trim(),
-      descriptor: Array.from(member.descriptor),
-      photoDataUrl: member.photoDataUrl || '',
-      createdAt: member.createdAt || new Date().toISOString()
-    };
 
-    const request = store.put(record);
-    request.onsuccess = () => resolve(record);
-    request.onerror = () => reject(request.error);
+    if (existingMember) {
+      // Append descriptor to existing member
+      if (!existingMember.descriptors) existingMember.descriptors = [];
+      existingMember.descriptors.push(descriptorArray);
+      if (photoDataUrl) existingMember.photoDataUrl = photoDataUrl; // update thumbnail
+
+      const putReq = store.put(existingMember);
+      putReq.onsuccess = () => resolve({ isNew: false, member: existingMember, count: existingMember.descriptors.length });
+      putReq.onerror = () => reject(putReq.error);
+    } else {
+      // Create new member with multi-descriptor array
+      const newRecord = {
+        id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+        name: trimmedName,
+        group: trimmedGroup,
+        descriptors: [descriptorArray],
+        photoDataUrl: photoDataUrl || '',
+        createdAt: new Date().toISOString()
+      };
+
+      const addReq = store.put(newRecord);
+      addReq.onsuccess = () => resolve({ isNew: true, member: newRecord, count: 1 });
+      addReq.onerror = () => reject(addReq.error);
+    }
   });
 }
 
@@ -157,7 +169,7 @@ export async function markAttendance(memberId, memberName, memberGroup, dateStr,
   const db = await initDB();
   const now = new Date();
   const currentDateStr = dateStr || now.toISOString().split('T')[0];
-  const timeStr = now.toTimeString().split(' ')[0]; // HH:mm:ss
+  const timeStr = now.toTimeString().split(' ')[0];
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction('attendance', 'readwrite');
@@ -210,12 +222,10 @@ export async function toggleManualAttendance(memberId, memberName, memberGroup, 
       const existing = todayLogs.find(log => log.memberId === memberId);
 
       if (existing) {
-        // Remove attendance
         const delReq = store.delete(existing.id);
         delReq.onsuccess = () => resolve({ action: 'removed', recordId: existing.id });
         delReq.onerror = () => reject(delReq.error);
       } else {
-        // Add manual attendance
         const newRecord = {
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
           memberId: memberId,

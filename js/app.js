@@ -1,12 +1,13 @@
 /**
  * app.js - Main Application Logic
- * Offline Face Recognition Attendance System with Grouping & Clipboard Export for list.daliuren.cc
+ * Offline Face Recognition Attendance System with Multi-Descriptor Collection
+ * list.daliuren.cc
  */
 
 import {
   initDB,
   getAllMembers,
-  addMember,
+  addOrAppendMember,
   updateMemberGroup,
   deleteMember,
   getAttendanceByDate,
@@ -34,17 +35,18 @@ let isRegistering = false;
 let scanStream = null;
 let regStream = null;
 
-let scanFacingMode = 'user'; // 'user' or 'environment'
-let regFacingMode = 'user';  // 'user' or 'environment'
+let scanFacingMode = 'user';
+let regFacingMode = 'user';
 
 let faceMatcher = null;
 let registeredMembers = [];
 let todayAttendance = [];
 let scanIntervalId = null;
+let regIntervalId = null;
 let cooldownMap = new Map();
 
-let activeBoardGroup = 'ALL'; // 'ALL' or specific group name
-let activeLogGroup = 'ALL';   // 'ALL' or specific group name
+let activeBoardGroup = 'ALL';
+let activeLogGroup = 'ALL';
 
 // DOM Elements
 const elements = {
@@ -104,18 +106,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const todayStr = getTodayDateStr();
   if (elements.logDateInput) elements.logDateInput.value = todayStr;
 
-  // Register Service Worker for PWA Offline Support
   registerServiceWorker();
 
-  // Load Data
   await refreshMembersAndMatcher();
   await refreshTodayAttendance();
-
-  // Load Face API Models
   await loadFaceModels();
 });
 
-// Register Service Worker
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./service-worker.js')
@@ -124,7 +121,6 @@ function registerServiceWorker() {
   }
 }
 
-// Load Face API Models from local ./models directory
 async function loadFaceModels() {
   updateStatus('載入離線模型中...', 'yellow');
   try {
@@ -241,6 +237,10 @@ function stopAllCameras() {
     clearInterval(scanIntervalId);
     scanIntervalId = null;
   }
+  if (regIntervalId) {
+    clearInterval(regIntervalId);
+    regIntervalId = null;
+  }
   isScanning = false;
   isRegistering = false;
 
@@ -257,7 +257,7 @@ function stopAllCameras() {
   if (elements.regVideo) elements.regVideo.srcObject = null;
 }
 
-// Refresh Members & Build FaceMatcher
+// Refresh Members & Build FaceMatcher with MULTI-DESCRIPTORS
 async function refreshMembersAndMatcher() {
   registeredMembers = await getAllMembers();
   if (registeredMembers.length === 0) {
@@ -266,8 +266,10 @@ async function refreshMembersAndMatcher() {
   }
 
   const labeledDescriptors = registeredMembers.map(m => {
-    const floatArray = new Float32Array(m.descriptor);
-    return new faceapi.LabeledFaceDescriptors(m.id, [floatArray]);
+    const descList = (m.descriptors && m.descriptors.length > 0)
+      ? m.descriptors.map(d => new Float32Array(d))
+      : [new Float32Array(m.descriptor)];
+    return new faceapi.LabeledFaceDescriptors(m.id, descList);
   });
 
   faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, CONFIG.FACE_DISTANCE_THRESHOLD);
@@ -282,14 +284,12 @@ async function refreshTodayAttendance() {
   renderBoardMemberList();
 }
 
-// Get List of Unique Groups
 function getUniqueGroups() {
   const groupsSet = new Set(registeredMembers.map(m => m.group || '第 1 組'));
   if (groupsSet.size === 0) groupsSet.add('第 1 組');
   return Array.from(groupsSet).sort();
 }
 
-// Render Group Filter Pills on Attendance Board
 function renderGroupFilterPills() {
   const container = elements.boardGroupFilter;
   if (!container) return;
@@ -298,7 +298,7 @@ function renderGroupFilterPills() {
 
   let html = `
     <button data-group="ALL" class="board-group-pill px-3 py-1 rounded-full whitespace-nowrap transition-all ${
-      activeBoardGroup === 'ALL' ? 'bg-sky-500 text-white font-semibold shadow-sm' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+      activeBoardGroup === 'ALL' ? 'bg-sky-500 text-white font-semibold shadow-sm' : 'bg-slate-800 text-slate-300 hover:text-white'
     }">
       全體團員 (${registeredMembers.length})
     </button>
@@ -308,7 +308,7 @@ function renderGroupFilterPills() {
     const count = registeredMembers.filter(m => (m.group || '第 1 組') === g).length;
     html += `
       <button data-group="${g}" class="board-group-pill px-3 py-1 rounded-full whitespace-nowrap transition-all ${
-        activeBoardGroup === g ? 'bg-sky-500 text-white font-semibold shadow-sm' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+        activeBoardGroup === g ? 'bg-sky-500 text-white font-semibold shadow-sm' : 'bg-slate-800 text-slate-300 hover:text-white'
       }">
         ${g} (${count})
       </button>
@@ -326,12 +326,10 @@ function renderGroupFilterPills() {
   });
 }
 
-// Render Attendance Status Board
 function renderBoardMemberList() {
   const container = elements.boardMemberList;
   if (!container) return;
 
-  // Filter members by group if selected
   const filteredMembers = activeBoardGroup === 'ALL'
     ? registeredMembers
     : registeredMembers.filter(m => (m.group || '第 1 組') === activeBoardGroup);
@@ -339,15 +337,14 @@ function renderBoardMemberList() {
   const attendedSet = new Map();
   todayAttendance.forEach(a => attendedSet.set(a.memberId, a));
 
-  // Count present in filtered set
   const presentCountInGroup = filteredMembers.filter(m => attendedSet.has(m.id)).length;
   elements.presentCount.textContent = presentCountInGroup;
   elements.totalCount.textContent = filteredMembers.length;
 
   if (filteredMembers.length === 0) {
     container.innerHTML = `
-      <div class="col-span-full py-8 text-center text-slate-500 text-sm">
-        此分組無成員，請先至「團員與分組」頁面新增團員。
+      <div class="col-span-full py-8 text-center text-slate-400 text-sm">
+        此分組無成員，請先至「團員與特徵」頁面新增團員。
       </div>
     `;
     return;
@@ -356,29 +353,31 @@ function renderBoardMemberList() {
   container.innerHTML = filteredMembers.map(member => {
     const isPresent = attendedSet.has(member.id);
     const attRecord = attendedSet.get(member.id);
+    const featureCount = (member.descriptors && member.descriptors.length) || 1;
 
     return `
       <div 
         data-member-id="${member.id}"
         class="manual-toggle-card cursor-pointer p-3 rounded-xl flex items-center justify-between transition-all duration-200 ${
-          isPresent ? 'bg-emerald-950/40 border border-emerald-500/40' : 'bg-slate-800/50 border border-slate-700/50'
+          isPresent ? 'bg-emerald-950/40 border border-emerald-500/40' : 'bg-slate-800/60 border border-slate-700/60'
         }"
       >
         <div class="flex items-center space-x-3">
-          <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-700 flex-shrink-0 flex items-center justify-center font-bold text-slate-300">
+          <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-700 flex-shrink-0 flex items-center justify-center font-bold text-slate-200">
             ${member.photoDataUrl ? `<img src="${member.photoDataUrl}" class="w-full h-full object-cover" />` : member.name.charAt(0)}
           </div>
           <div>
-            <div class="font-medium text-slate-200 flex items-center gap-1.5">
+            <div class="font-bold text-white flex items-center gap-1.5">
               ${member.name}
-              <span class="text-[10px] px-1.5 py-0.2 bg-slate-700/60 text-slate-300 rounded">${member.group || '第 1 組'}</span>
+              <span class="text-[10px] px-1.5 py-0.2 bg-slate-700 text-sky-300 rounded font-normal">${member.group || '第 1 組'}</span>
+              <span class="text-[10px] text-slate-400">(${featureCount}筆特徵)</span>
             </div>
-            <div class="text-xs ${isPresent ? 'text-emerald-400' : 'text-slate-400'}">
+            <div class="text-xs font-semibold ${isPresent ? 'text-emerald-400' : 'text-slate-400'}">
               ${isPresent ? `已到 ‧ ${attRecord.timeStr} (${attRecord.type === 'manual' ? '手動' : '人臉'})` : '未到'}
             </div>
           </div>
         </div>
-        <div class="px-2.5 py-1 rounded-full text-xs font-semibold ${
+        <div class="px-2.5 py-1 rounded-full text-xs font-bold ${
           isPresent ? 'badge-present' : 'badge-absent'
         }">
           ${isPresent ? '✓ 已出席' : '未出席'}
@@ -387,7 +386,6 @@ function renderBoardMemberList() {
     `;
   }).join('');
 
-  // Add click handler for manual check-in toggle
   container.querySelectorAll('.manual-toggle-card').forEach(card => {
     card.addEventListener('click', async () => {
       const id = card.dataset.memberId;
@@ -429,7 +427,7 @@ async function startAttendanceScan() {
       canvas.height = video.videoHeight;
     }
 
-    const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.5 });
+    const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.45 });
     const detections = await faceapi.detectAllFaces(video, options)
       .withFaceLandmarks(true)
       .withFaceDescriptors();
@@ -463,7 +461,7 @@ async function startAttendanceScan() {
       ctx.strokeStyle = isMatched ? '#10b981' : '#f43f5e';
       ctx.strokeRect(box.x, box.y, box.width, box.height);
 
-      ctx.fillStyle = isMatched ? 'rgba(16, 185, 129, 0.85)' : 'rgba(244, 63, 94, 0.85)';
+      ctx.fillStyle = isMatched ? 'rgba(16, 185, 129, 0.95)' : 'rgba(244, 63, 94, 0.95)';
       ctx.fillRect(box.x, box.y - 28, Math.max(120, box.width), 28);
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 14px sans-serif';
@@ -505,7 +503,7 @@ function showSuccessBanner(name, timeStr) {
   }, 2200);
 }
 
-// MEMBER REGISTRATION & GROUP MANAGEMENT
+// MEMBER REGISTRATION & LIVE DETECT PREVIEW
 function updateGroupDropdownOptions() {
   const select = elements.regGroupSelect;
   if (!select) return;
@@ -531,16 +529,60 @@ async function startRegistrationCamera() {
     elements.startRegCameraBtn.classList.add('hidden');
     elements.switchRegCameraBtn.classList.remove('hidden');
     elements.captureFaceBtn.classList.remove('hidden');
-    elements.regStatusMsg.textContent = '請面對鏡頭，保持光線充足。';
-    elements.regStatusMsg.className = 'text-xs text-sky-400 text-center';
+    elements.regStatusMsg.textContent = '🔍 偵測人臉中，請面對鏡頭...';
+    elements.regStatusMsg.className = 'text-xs text-sky-300 font-semibold text-center min-h-[20px]';
+
+    // Start live preview detection loop to show bounding box during registration
+    startRegistrationLivePreview();
   }
+}
+
+function startRegistrationLivePreview() {
+  const video = elements.regVideo;
+  const canvas = elements.regCanvas;
+
+  if (regIntervalId) clearInterval(regIntervalId);
+
+  regIntervalId = setInterval(async () => {
+    if (!isRegistering || !video || video.paused || video.ended) return;
+
+    if (canvas.width !== video.videoWidth) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
+
+    const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.35 });
+    const detection = await faceapi.detectSingleFace(video, options);
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (detection) {
+      const box = detection.box;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.9)';
+      ctx.fillRect(box.x, box.y - 24, 140, 24);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('✓ 已瞄準人臉', box.x + 6, box.y - 7);
+
+      elements.regStatusMsg.textContent = '🟢 成功瞄準臉部，請點擊「📸 擷取特徵碼」！';
+      elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px] animate-pulse';
+    } else {
+      elements.regStatusMsg.textContent = '🔍 搜尋臉部中...請靠近鏡頭並保持光線充足';
+      elements.regStatusMsg.className = 'text-xs text-amber-300 font-semibold text-center min-h-[20px]';
+    }
+  }, 150);
 }
 
 function resetRegistrationForm() {
   stopAllCameras();
   elements.regNameInput.value = '';
   elements.regStatusMsg.textContent = '請點擊開啟相機並保持臉部於畫面中央';
-  elements.regStatusMsg.className = 'text-xs text-slate-400 text-center';
+  elements.regStatusMsg.className = 'text-xs text-slate-300 text-center min-h-[20px]';
   elements.startRegCameraBtn.classList.remove('hidden');
   elements.switchRegCameraBtn.classList.add('hidden');
   elements.captureFaceBtn.classList.add('hidden');
@@ -566,28 +608,38 @@ async function captureAndRegisterFace() {
   }
 
   if (!isModelLoaded) {
-    alert('人臉辨識模組載入中，請稍候...');
+    alert('離線人臉辨識模組載入中，請稍候...');
     return;
   }
 
   elements.captureFaceBtn.disabled = true;
-  elements.regStatusMsg.textContent = '分析特徵中，請保持不動...';
+  elements.regStatusMsg.textContent = '⏳ 正在提取特徵碼向量...';
+  elements.regStatusMsg.className = 'text-xs text-sky-300 font-bold text-center min-h-[20px]';
 
   try {
     const video = elements.regVideo;
-    const options = new faceapi.TinyFaceOptions({ inputSize: 320, scoreThreshold: 0.5 });
-    const detection = await faceapi.detectSingleFace(video, options)
-      .withFaceLandmarks(true)
-      .withFaceDescriptor();
+
+    // Retry detection across multiple input sizes (224, 160, 320) with lenient threshold for high success rate
+    let detection = null;
+    const sizes = [224, 160, 320];
+
+    for (const size of sizes) {
+      const options = new faceapi.TinyFaceOptions({ inputSize: size, scoreThreshold: 0.30 });
+      detection = await faceapi.detectSingleFace(video, options)
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+      if (detection) break;
+    }
 
     if (!detection) {
       playErrorSound();
-      elements.regStatusMsg.textContent = '❌ 未能清晰偵測到人臉，請重新對準鏡頭';
-      elements.regStatusMsg.className = 'text-xs text-rose-400 text-center';
+      elements.regStatusMsg.textContent = '❌ 未能抓取到臉部特徵！請嘗試：靠近鏡頭、保持正面、光源充足。';
+      elements.regStatusMsg.className = 'text-xs text-rose-400 font-bold text-center min-h-[20px]';
       elements.captureFaceBtn.disabled = false;
       return;
     }
 
+    // Capture static thumbnail photo
     const canvas = document.createElement('canvas');
     canvas.width = 160;
     canvas.height = 160;
@@ -596,9 +648,10 @@ async function captureAndRegisterFace() {
     const sx = (video.videoWidth - minDim) / 2;
     const sy = (video.videoHeight - minDim) / 2;
     ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, 160, 160);
-    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-    await addMember({
+    // Save or append descriptor to IndexedDB
+    const result = await addOrAppendMember({
       name: name,
       group: group,
       descriptor: Array.from(detection.descriptor),
@@ -606,9 +659,13 @@ async function captureAndRegisterFace() {
     });
 
     playBeepSound();
-    elements.regStatusMsg.textContent = `✓ 團員「${name}」(${group}) 註冊成功！`;
-    elements.regStatusMsg.className = 'text-xs text-emerald-400 text-center font-semibold';
-    elements.regNameInput.value = '';
+
+    if (result.isNew) {
+      elements.regStatusMsg.textContent = `🎉 新增團員「${name}」(${group}) 成功！建議再轉個微角度擷取第 2 筆特徵！`;
+    } else {
+      elements.regStatusMsg.textContent = `✓ 已成功為「${name}」追加第 ${result.count} 筆特徵碼！辨識速度與準確率提升！`;
+    }
+    elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px]';
 
     await refreshMembersAndMatcher();
     updateGroupDropdownOptions();
@@ -616,46 +673,83 @@ async function captureAndRegisterFace() {
 
   } catch (err) {
     console.error('Face capture error:', err);
-    elements.regStatusMsg.textContent = '❌ 註冊失敗，請重試';
+    elements.regStatusMsg.textContent = '❌ 註冊失敗：' + err.message;
+    elements.regStatusMsg.className = 'text-xs text-rose-400 font-bold text-center min-h-[20px]';
   } finally {
     elements.captureFaceBtn.disabled = false;
   }
 }
 
-// Render Registered Member List in Tab 2
+// Render Registered Member List in Tab 2 with Append Feature Button
 function renderRegisteredMemberList() {
   const container = elements.registeredMemberList;
   if (!container) return;
 
   if (registeredMembers.length === 0) {
-    container.innerHTML = `<div class="text-center py-6 text-slate-500 text-sm">尚無已註冊團員</div>`;
+    container.innerHTML = `<div class="text-center py-6 text-slate-400 text-sm">尚無已註冊團員</div>`;
     return;
   }
 
-  container.innerHTML = registeredMembers.map(m => `
-    <div class="glass-card p-3 rounded-xl flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-700 flex-shrink-0 flex items-center justify-center font-bold">
-          ${m.photoDataUrl ? `<img src="${m.photoDataUrl}" class="w-full h-full object-cover" />` : m.name.charAt(0)}
-        </div>
-        <div>
-          <div class="font-medium text-slate-200 flex items-center gap-1.5">
-            ${m.name}
-            <span class="btn-change-group cursor-pointer text-[10px] px-2 py-0.5 bg-sky-500/20 text-sky-300 rounded border border-sky-500/30 hover:bg-sky-500/30" data-mem-id="${m.id}" data-mem-group="${m.group || '第 1 組'}">
-              ${m.group || '第 1 組'} ✏️
-            </span>
+  container.innerHTML = registeredMembers.map(m => {
+    const featCount = (m.descriptors && m.descriptors.length) || 1;
+    return `
+      <div class="glass-card p-3 rounded-xl flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-700 flex-shrink-0 flex items-center justify-center font-bold text-white">
+            ${m.photoDataUrl ? `<img src="${m.photoDataUrl}" class="w-full h-full object-cover" />` : m.name.charAt(0)}
           </div>
-          <div class="text-xs text-slate-400">註冊時間：${new Date(m.createdAt).toLocaleDateString()}</div>
+          <div>
+            <div class="font-bold text-white flex items-center gap-1.5">
+              ${m.name}
+              <span class="btn-change-group cursor-pointer text-[10px] px-2 py-0.5 bg-sky-500/20 text-sky-300 rounded border border-sky-500/30 hover:bg-sky-500/30" data-mem-id="${m.id}" data-mem-group="${m.group || '第 1 組'}">
+                ${m.group || '第 1 組'} ✏️
+              </span>
+            </div>
+            <div class="text-xs text-sky-400 font-medium flex items-center gap-1">
+              <span>📸 ${featCount} 筆特徵向量</span>
+              <span class="text-slate-500">‧</span>
+              <span class="text-slate-400">${new Date(m.createdAt).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button 
+            data-append-name="${m.name}"
+            data-append-group="${m.group || '第 1 組'}"
+            class="btn-append-feature px-2.5 py-1 bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/40 rounded-lg text-xs font-semibold transition-colors flex items-center gap-0.5"
+          >
+            ＋追加特徵
+          </button>
+          <button 
+            data-del-id="${m.id}" 
+            class="btn-del-member px-2.5 py-1 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 rounded-lg text-xs font-medium transition-colors"
+          >
+            刪除
+          </button>
         </div>
       </div>
-      <button 
-        data-del-id="${m.id}" 
-        class="btn-del-member px-3 py-1 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 rounded-lg text-xs transition-colors"
-      >
-        刪除
-      </button>
-    </div>
-  `).join('');
+    `;
+  }).join('');
+
+  // Append feature button handler
+  container.querySelectorAll('.btn-append-feature').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const name = btn.dataset.appendName;
+      const group = btn.dataset.appendGroup;
+
+      elements.regNameInput.value = name;
+      elements.regGroupSelect.value = group;
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (!isRegistering) {
+        await startRegistrationCamera();
+      }
+
+      elements.regStatusMsg.textContent = `請將「${name}」稍微轉動微角度 (正臉/側臉/戴眼鏡/笑臉) 並點擊擷取特徵！`;
+      elements.regStatusMsg.className = 'text-xs text-sky-300 font-bold text-center min-h-[20px]';
+    });
+  });
 
   // Group change handler
   container.querySelectorAll('.btn-change-group').forEach(btn => {
@@ -663,7 +757,7 @@ function renderRegisteredMemberList() {
       e.stopPropagation();
       const id = btn.dataset.memId;
       const currentG = btn.dataset.memGroup;
-      const newGroup = prompt(`請輸入「${btn.parentElement.textContent.trim()}」的新分組名稱:`, currentG);
+      const newGroup = prompt(`請輸入的新分組名稱:`, currentG);
       if (newGroup && newGroup.trim()) {
         await updateMemberGroup(id, newGroup.trim());
         await refreshMembersAndMatcher();
@@ -711,7 +805,6 @@ async function renderLogsPreview() {
   const attendedMap = new Map();
   logs.forEach(l => attendedMap.set(l.memberId, l));
 
-  // Filter members by group
   const targetMembers = groupFilter === 'ALL'
     ? registeredMembers
     : registeredMembers.filter(m => (m.group || '第 1 組') === groupFilter);
@@ -771,7 +864,6 @@ async function copyLogsToClipboard() {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(text);
     } else {
-      // Fallback for older WebViews / iOS Safari
       elements.logPreviewText.select();
       document.execCommand('copy');
     }
@@ -805,6 +897,7 @@ function setupEventListeners() {
     if (e.target.value === '+ 自訂新分組') {
       const custom = prompt('請輸入自訂分組名稱:');
       if (custom && custom.trim()) {
+        const select = elements.regGroupSelect;
         const option = document.createElement('option');
         option.value = custom.trim();
         option.textContent = custom.trim();

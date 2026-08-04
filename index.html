@@ -108,7 +108,7 @@
       </div>
     </section>
 
-    <!-- TAB 2: MEMBER REGISTRATION & GROUP MANAGEMENT -->
+    <!-- TAB 2: MEMBER REGISTRATION & MULTI-FEATURE CAPTURE -->
     <section id="tab-register" class="tab-content hidden space-y-4">
       <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-4">
         <div class="flex items-center justify-between">
@@ -116,14 +116,22 @@
             <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
             </svg>
-            團員註冊與分組設定
+            團員特徵採集 (支援同人多角度)
           </h2>
           <button id="btn-reset-reg-form" class="px-2.5 py-1 rounded-lg glass-card text-slate-200 hover:text-white text-xs flex items-center gap-1 transition-colors border border-slate-600">
             <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            重新整理
+            重置表格
           </button>
+        </div>
+
+        <!-- Tip Box -->
+        <div class="p-3 bg-sky-950/40 border border-sky-500/30 rounded-xl text-xs text-sky-200 space-y-1">
+          <div class="font-bold flex items-center gap-1 text-sky-300">
+            💡 提高辨識速度與準確率技巧：
+          </div>
+          <div>輸入相同姓名，可連續拍攝 <b>正面、微側臉、笑臉或戴眼鏡</b> 特徵！同一個人採集 2~4 筆特徵碼可大幅提升辨識速度。</div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -152,13 +160,13 @@
         </div>
 
         <!-- Registration Camera Box -->
-        <div class="camera-container aspect-square max-h-52 mx-auto">
+        <div class="camera-container aspect-square max-h-56 mx-auto">
           <video id="reg-video" class="camera-video" autoplay playsinline muted></video>
           <canvas id="reg-canvas" class="camera-canvas"></canvas>
         </div>
 
-        <div id="reg-status-msg" class="text-xs font-medium text-slate-300 text-center">
-          請點擊開啟相機並保持臉部於畫面中央
+        <div id="reg-status-msg" class="text-xs font-semibold text-slate-300 text-center min-h-[20px]">
+          請點擊開啟相機並對準臉部
         </div>
 
         <div class="flex gap-2">
@@ -169,14 +177,14 @@
             切換鏡頭
           </button>
           <button id="btn-capture-face" class="hidden flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/25 transition-all">
-            擷取特徵並註冊
+            📸 擷取特徵碼 (可重複擷取)
           </button>
         </div>
       </div>
 
       <!-- Registered Members List -->
       <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3">
-        <h3 class="text-sm font-bold text-white">已註冊團員名冊</h3>
+        <h3 class="text-sm font-bold text-white">已註冊團員名冊 (點擊可追加特徵)</h3>
         <div id="registered-member-list" class="space-y-2 max-h-60 overflow-y-auto">
           <!-- Member items -->
         </div>
@@ -272,7 +280,7 @@
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
         </svg>
-        <span class="text-[10px] font-bold">團員與分組</span>
+        <span class="text-[10px] font-bold">團員與特徵</span>
       </button>
 
       <button data-tab="logs" class="nav-tab text-slate-400 flex flex-col items-center gap-1 py-1 px-3">
