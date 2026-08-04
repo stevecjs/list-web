@@ -1,6 +1,6 @@
 /**
  * app.js - Main Application Logic
- * Offline Face Recognition Attendance System with Dynamic Purpose Checklist & One-Click Clear
+ * Offline Face Recognition Attendance System with Real-Time Progress Bar
  * list.daliuren.cc
  */
 
@@ -61,6 +61,12 @@ const elements = {
   dateDisplay: document.getElementById('date-display'),
   diagModelStatus: document.getElementById('diag-model-status'),
 
+  // Progress Bar
+  progressContainer: document.getElementById('init-progress-container'),
+  progressStatus: document.getElementById('init-progress-status'),
+  progressPercent: document.getElementById('init-progress-percent'),
+  progressBar: document.getElementById('init-progress-bar'),
+
   // Scan View
   scanVideo: document.getElementById('scan-video'),
   scanCanvas: document.getElementById('scan-canvas'),
@@ -116,9 +122,39 @@ const elements = {
   thresholdValue: document.getElementById('threshold-value')
 };
 
-// Initialize Application - Fail safe init
+// Update Visual Progress Bar
+function updateInitProgress(percent, statusText) {
+  if (elements.progressBar) {
+    elements.progressBar.style.width = `${percent}%`;
+  }
+  if (elements.progressPercent) {
+    elements.progressPercent.textContent = `${percent}%`;
+  }
+  if (elements.progressStatus) {
+    elements.progressStatus.innerHTML = percent < 100
+      ? `<span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span> ${statusText}`
+      : `<span class="text-emerald-400 font-bold">✓ ${statusText}</span>`;
+  }
+  if (elements.statusText) {
+    elements.statusText.textContent = percent < 100 ? `載入中 ${percent}%` : '系統就緒';
+  }
+  if (elements.statusDot) {
+    elements.statusDot.className = `w-2.5 h-2.5 rounded-full ${percent < 100 ? 'bg-yellow-500' : 'bg-green-500'}`;
+  }
+
+  if (percent >= 100 && elements.progressContainer) {
+    setTimeout(() => {
+      elements.progressContainer.style.opacity = '0';
+      setTimeout(() => elements.progressContainer.classList.add('hidden'), 500);
+    }, 2500);
+  }
+}
+
+// Initialize Application
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    updateInitProgress(10, '準備系統組件與頁面介面...');
+
     setupTabs();
     setupEventListeners();
     updateClock();
@@ -129,10 +165,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     registerServiceWorker();
 
-    // Immediately update header status to READY so header NEVER hangs on "初始化系統中..."
-    updateStatus('系統已就緒', 'green');
+    updateInitProgress(25, '正在讀取 IndexedDB 團員名冊...');
 
-    // Safe DB initialization
     try {
       await refreshMembersAndMatcher();
       await refreshTodayAttendance();
@@ -140,12 +174,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.warn('DB Load Warning:', dbErr);
     }
 
-    // Safe Non-blocking Model Load
-    loadFaceModels().catch(err => console.warn('Model load background warning:', err));
+    updateInitProgress(40, '載入 AI 人臉偵測特徵模型...');
+
+    loadFaceModels().catch(err => {
+      console.warn('Model load background warning:', err);
+      updateInitProgress(100, '相片註冊與手動點名模式已就緒');
+    });
 
   } catch (err) {
     console.error('App init error:', err);
-    updateStatus('系統已就緒', 'green');
+    updateInitProgress(100, '相片註冊與手動點名模式就緒');
   }
 });
 
@@ -165,31 +203,23 @@ async function loadFaceModels() {
       throw new Error('face-api.js Script 尚未載入');
     }
 
-    await Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(CONFIG.MODEL_URL),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri(CONFIG.MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(CONFIG.MODEL_URL)
-    ]);
+    updateInitProgress(50, '載入人臉偵測模型 tinyFaceDetector (1/3)...');
+    await faceapi.nets.tinyFaceDetector.loadFromUri(CONFIG.MODEL_URL);
+
+    updateInitProgress(75, '載入特徵點模型 landmarkTiny (2/3)...');
+    await faceapi.nets.faceLandmark68TinyNet.loadFromUri(CONFIG.MODEL_URL);
+
+    updateInitProgress(90, '載入特徵向量比對模型 recognition (3/3)...');
+    await faceapi.nets.faceRecognitionNet.loadFromUri(CONFIG.MODEL_URL);
 
     isModelLoaded = true;
-    updateStatus('離線 AI 比對與點名就緒', 'green');
+    updateInitProgress(100, 'AI 人臉辨識與點名引擎已完全就緒！');
     if (elements.diagModelStatus) elements.diagModelStatus.textContent = '✓ tinyFaceDetector 離線成功';
   } catch (err) {
     console.warn('Face models load warning:', err);
-    updateStatus('離線相片點名模式就緒', 'green');
-    if (elements.diagModelStatus) elements.diagModelStatus.textContent = '⚠️ 離線 AI 模型載入中 (已開啟相片註冊與手動點名)';
+    updateInitProgress(100, '相片註冊與手動點名模式已就緒');
+    if (elements.diagModelStatus) elements.diagModelStatus.textContent = '⚠️ 離線 AI 模型載入中 (相片註冊與手動點名模式可直接使用)';
   }
-}
-
-function updateStatus(text, color = 'green') {
-  if (!elements.statusText) return;
-  elements.statusText.textContent = text;
-  const colorMap = {
-    green: 'bg-green-500',
-    yellow: 'bg-yellow-500',
-    red: 'bg-red-500'
-  };
-  elements.statusDot.className = `w-2.5 h-2.5 rounded-full ${colorMap[color] || 'bg-gray-400'}`;
 }
 
 function getTodayDateStr() {
@@ -347,7 +377,6 @@ async function refreshTodayAttendance() {
   renderBoardMemberList();
 }
 
-// Render Attendance Status Board
 function renderBoardMemberList() {
   const container = elements.boardMemberList;
   if (!container) return;
