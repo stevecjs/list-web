@@ -1,6 +1,7 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Real-time Euclidean Distance Monitor & Automated Bounding Box Matching
+ * Features Real-time Euclidean Distance Monitor & Automatic Bounding Box Matcher
+ * Fixed API Contract: faceapi.TinyFaceDetectorOptions
  * list.daliuren.cc
  */
 
@@ -325,8 +326,8 @@
       ? registeredMembers.filter(m => selectedMemberIds.has(m.id))
       : registeredMembers;
 
-    const attendedMap = new Map();
-    todayAttendance.forEach(a => attendedMap.set(a.memberId, a));
+    const attendedSet = new Map();
+    todayAttendance.forEach(a => attendedSet.set(a.memberId, a));
 
     const presentCount = displayMembers.filter(m => attendedSet.has(m.id)).length;
     if (presentCountEl) presentCountEl.textContent = presentCount;
@@ -343,8 +344,8 @@
     }
 
     container.innerHTML = displayMembers.map(m => {
-      const isAttended = attendedMap.has(m.id);
-      const attRecord = attendedMap.get(m.id);
+      const isAttended = attendedSet.has(m.id);
+      const attRecord = attendedSet.get(m.id);
       const vecCount = (m.descriptors && m.descriptors.length) || 0;
 
       return `
@@ -477,7 +478,7 @@
       }
 
       try {
-        const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.35 });
+        const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.35 });
         const detections = await faceapi.detectAllFaces(video, options)
           .withFaceLandmarks(true)
           .withFaceDescriptors();
@@ -532,7 +533,7 @@
             const cooldownUntil = cooldownMap.get(matchedMember.id) || 0;
 
             if (nowMs > cooldownUntil) {
-              cooldownMap.set(matchedMember.id, nowMs + CONFIG.COOLDOWN_MS);
+              cooldownMap.set(matchedMember.id, nowMs + 1500);
 
               const result = await markAttendanceDB(
                 matchedMember.id,
@@ -589,7 +590,7 @@
     try {
       let detection = null;
       if (isAiModelLoaded) {
-        const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.25 });
+        const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.25 });
         detection = await faceapi.detectSingleFace(video, options)
           .withFaceLandmarks(true)
           .withFaceDescriptor();
@@ -695,7 +696,7 @@
     }
 
     try {
-      const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.2 });
+      const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.2 });
       const detection = await faceapi.detectSingleFace(video, options)
         .withFaceLandmarks(true)
         .withFaceDescriptor();
