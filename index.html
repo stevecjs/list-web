@@ -84,12 +84,15 @@
 
       <!-- Camera Control Buttons -->
       <div class="space-y-2">
-        <div class="flex gap-2">
+        <div class="flex gap-2 flex-wrap">
           <button id="btn-open-camera" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-extrabold text-xs shadow-lg shadow-sky-500/25 active:scale-95 transition-all flex items-center justify-center gap-2">
             📷 開啟鏡頭並啟動 AI 辨識
           </button>
           <button id="btn-switch-camera" class="hidden py-3 px-3 rounded-xl glass-card text-sky-300 font-bold text-xs border border-slate-600">
             🔄 切換鏡頭
+          </button>
+          <button id="btn-refresh-camera" class="hidden py-3 px-3 rounded-xl glass-card text-emerald-300 font-bold text-xs border border-slate-600">
+            ⚡ 重新整理鏡頭
           </button>
           <button id="btn-test-ai-match" class="hidden py-3 px-3 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 text-purple-200 border border-purple-500/40 font-bold text-xs">
             🧪 測試辨識

@@ -1,7 +1,6 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Real-time Euclidean Distance Monitor & Automatic Bounding Box Matcher
- * Fixed API Contract: faceapi.TinyFaceDetectorOptions
+ * Features Real-time Euclidean Distance Monitor, Camera Refresh Button & Automatic Bounding Box Matcher
  * list.daliuren.cc
  */
 
@@ -438,9 +437,7 @@
   // --- 6. CAMERA & REAL-TIME AI SCANNER ---
   async function startCamera(facingMode = 'user') {
     try {
-      if (activeStream) {
-        activeStream.getTracks().forEach(t => t.stop());
-      }
+      stopCamera();
       const constraints = { video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 480 } } };
       activeStream = await navigator.mediaDevices.getUserMedia(constraints);
       
@@ -455,6 +452,23 @@
       alert('無法開啟相機，請檢查瀏覽器相機存取權限。');
       return null;
     }
+  }
+
+  function stopCamera() {
+    if (activeStream) {
+      activeStream.getTracks().forEach(t => t.stop());
+      activeStream = null;
+    }
+    const video = $('main-video');
+    if (video) video.srcObject = null;
+    if (scanIntervalId) clearInterval(scanIntervalId);
+  }
+
+  async function restartCamera() {
+    stopCamera();
+    const diagReading = $('diag-dist-reading');
+    if (diagReading) diagReading.textContent = '⚡ 正在重新整理鏡頭串流中...';
+    await startCamera(currentFacingMode);
   }
 
   function startAiFaceScanner() {
@@ -797,6 +811,7 @@
   function bindEvents() {
     const btnOpenCam = $('btn-open-camera');
     const btnSwitchCam = $('btn-switch-camera');
+    const btnRefreshCam = $('btn-refresh-camera');
     const btnTestAi = $('btn-test-ai-match');
     const btnAiReg = $('btn-ai-register');
     const btnPhotoReg = $('btn-photo-register');
@@ -807,6 +822,7 @@
         await startCamera(currentFacingMode);
         if (btnOpenCam) btnOpenCam.classList.add('hidden');
         if (btnSwitchCam) btnSwitchCam.classList.remove('hidden');
+        if (btnRefreshCam) btnRefreshCam.classList.remove('hidden');
         if (btnTestAi) btnTestAi.classList.remove('hidden');
       });
     }
@@ -816,6 +832,10 @@
         currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
         await startCamera(currentFacingMode);
       });
+    }
+
+    if (btnRefreshCam) {
+      btnRefreshCam.addEventListener('click', restartCamera);
     }
 
     if (btnTestAi) btnTestAi.addEventListener('click', testAiMatchDiagnostic);
