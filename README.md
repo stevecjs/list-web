@@ -1,81 +1,96 @@
-# 點 - 離線點名與註冊系統 (list.daliuren.cc)
+# 點名 - 離線 AI 人臉辨識與團隊點名系統 (list.daliuren.cc)
 
-高度優化於 **iPhone 13 Pro (iOS Safari / PWA)** 執行的 100% 離線國外旅遊點名與成員管理系統。專為 30 人以內之團體旅遊設計，具備強大離線快取、照片頭像註冊、一鍵點名看板、動態挑選對象與點名紀錄複製功能。
+高度優化於 **iPhone 13 Pro (iOS Safari / PWA)** 執行的 100% 離線國外旅遊點名與團隊管理系統。專為 30 人以內之團體旅遊設計，整合 **離線 AI 人臉辨識引擎 (128維特徵向量)**、**雙引擎遠距離相機縮放 (1.0x ~ 4.0x)**、**自訂點名群組管理**、**防重複註冊**與**一鍵複製點名紀錄**等強大功能。
 
 ---
 
 ## 🌟 系統核心特色
 
-1. **100% 完全離線 (PWA 架構)**：
-   - 專屬 App 標籤名稱為 **「點」**。
-   - `service-worker.js` (v4) 使用 Cache-First 快取策略，在完全沒有網路（飛航模式）下開機並順暢運行。
+### 1. 🤖 100% 離線 AI 人臉辨識與實時診斷
+- **離線人臉特徵提取**：採用 `face-api.js` (TinyFaceDetectorOptions 離線模型權重)，在無網路（飛航模式）下即時掃描人臉並分析 128 維特徵碼。
+- **歐氏距離實時比對**：提供即時比對診斷日誌，動態顯示目前比對距離與合格門檻（例：`[✓ 比對成功: 王小明 (歐氏距離 0.42 <= 0.65)]`）。
+- **綠色/紅色動態追蹤框**：辨識成功自動標示綠色實名外框並發出提示音與成功卡片動畫，防止重複打勾。
 
-2. **零模組依賴獨立引擎 (100% 設備相容)**：
-   - 採用原生單一封裝架構，無跨檔案 ES Module 載入卡關風險，在舊款 iOS Safari 與各類手機瀏覽器上皆可秒速載入。
+### 2. 🔍 雙引擎遠距離相機變焦 (Hardware + Digital Zoom Engine)
+- **1.0x ~ 4.0x 縮放控制**：結合手機鏡頭硬體變焦 (`MediaTrackConstraints.zoom`) 與高解析度數位放大 (`CSS transform: scale()`)，可將 3 ~ 5 公尺外的遠距離團員臉孔放大進行 AI 點名。
+- **2 層式響應式控制面板**：提供 **`[ 1x ]`** ‧ **`[ 1.5x ]`** ‧ **`[ 2x ]`** ‧ **`[ 3x ]`** 倍率快捷按鈕與平滑滑桿。
+- **後置鏡頭預設與控制**：開啟相機預設調用後置主鏡頭 (`facingMode: 'environment'`)，提供 **`🔄 切換鏡頭`**、**`⚡ 重新整理鏡頭`** 與 **`🚫 關閉鏡頭`** 功能。
 
-3. **相片頭像快速註冊與秒速點名**：
-   - 相機支援前後鏡頭切換 (`user` / `environment`)。
-   - 輸入姓名即可一鍵拍攝頭像圖片並寫入 IndexedDB 本地資料庫。
-   - 提供大字體高對比團員卡片，點擊卡片即可發出提示音並完成手動/即時點名。
+### 3. 🎯 自訂點名群組管理系統 (新增 / 編輯群組名稱 / 成員分組)
+- **多功能群組管理**：支援建立自訂行程群組（例如：`遊覽車A車`、`景點自由行B組`、`晚餐第一桌`）。
+- **群組編輯與重新命名**：提供 **`✏️ 編輯`** 按鈕，可隨時修改群組名稱或更新該群組的勾選成員。
+- **秒速套用與切換**：點擊任意群組膠囊，點名看板立即切換為該群組成員名單，滿足多元點名需求。
 
-4. **動態用途/行程挑選點名對象 (🎯 挑選對象)**：
-   - 不受限於固定分組，提供「全選」、「全不選」與「自訂挑選」抽屜視窗。
-   - 可依不同旅遊行程（例：遊覽車上點名 15 人、晚餐集合 10 人）自由挑選點名名冊。
+### 4. 📝 彈性團員註冊機制 (預先建立 + AI 特徵追加)
+- **免相機預先打字建名冊**：出發前無需開啟相機，輸入姓名即可直接新增無特徵碼的團員卡片（支援手動點名）。
+- **防重複名冊建立**：自動檢測團員姓名，若同名團員已存在且相機開啟，自動為該團員追加多筆 AI 人臉特徵向量，大幅提升多角度辨識準確率。
 
-5. **一鍵清空點名看板 (🧹 清空看板)**：
-   - 一鍵將看板紀錄重置為「未出席」狀態，方便前往下一個景點時開啟新一輪點名。
-
-6. **一鍵複製點名紀錄至剪貼簿 (📋 複製紀錄)**：
-   - 自動生成包含「已出席名單 (含點名時間)」與「未出席名單」之排版文字，可直接貼上至 LINE 或微信群組。
-
-7. **一鍵強制更新 PWA 網頁 (🔄 更新網頁)**：
-   - 提供硬體快取清除按鈕，秒速清空離線快取並載入最新版網站（團員資料安全保留）。
-
-8. **高對比暗黑介面設計 (High Contrast Dark Mode)**：
-   - 針對 iOS Safari 淺色模式控制項進行強制暗黑覆蓋 (`color-scheme: dark !important;`)，確保輸入框、按鈕與卡片文字清晰可見。
+### 5. 📱 極簡質感 UI 與 PWA 離線架構 (v6)
+- **iOS 主畫面專屬 App**：主畫面 APP 名稱設為 **「點名」**，搭配質感升級之 **「點」** 字圖示與專屬 `apple-touch-icon.png`。
+- **雙重區塊摺疊功能**：相機預覽區塊與團員總名冊均配備 **`[ 🔼 收起 / 🔽 展開 ]`** 按鈕，釋放手機全螢幕空間予點名看板。
+- **100% Cache-First 離線快取**：`service-worker.js` (v6) 確保斷網環境下載入速度秒開。
 
 ---
 
-## 📁 專案結構
+## 🗄️ IndexedDB 本地資料庫架構 (Version 6)
+
+專案採用瀏覽器 IndexedDB 本地極速儲存，完全免用伺服器或外部分頁：
+
+- `members`：儲存團員 ID、姓名、特徵向量陣列 (`descriptors: Array<Float32Array>`)、快照頭像。
+- `attendance`：儲存每日點名紀錄（團員 ID、日期、打卡時間、打卡類型 `ai` 或 `tap`）。
+- `groups`：儲存自訂群組（群組 ID、群組名稱 `name`、成員 ID 陣列 `memberIds`）。
+
+---
+
+## 📁 專案目錄結構
 
 ```
 d:\website\list\
 ├── index.html              # 主介面與 PWA App Shell
-├── manifest.json           # Web App Manifest 配置 (Short Name: "點")
-├── service-worker.js       # PWA v4 離線 Service Worker
-├── README.md
-├── .gitignore
+├── manifest.json           # PWA 應用程式配置 (Short Name: "點名")
+├── service-worker.js       # PWA v6 離線快取 Service Worker
+├── README.md               # 專案說明文件
 ├── css/
 │   ├── tailwind.min.css    # Tailwind CSS 核心樣式檔
-│   └── custom.css          # 高對比主題、iOS Safe-Area 與動畫
+│   └── custom.css          # 暗黑主題、iOS Safe-Area 與鏡頭動畫
 ├── js/
-│   └── app.js              # 單一獨立應用程式核心邏輯與 IndexedDB 引擎
-└── assets/                 # PWA App Icon 圖標與資源 (icon.svg, icon-192, icon-512)
+│   ├── face-api.min.js     # 離線人臉辨識庫
+│   └── app.js              # 應用程式核心 logic、IndexedDB 與 AI 引擎
+├── models/                 # AI 人臉辨識權重檔
+│   ├── tiny_face_detector_model-weights_manifest.json
+│   ├── face_landmark_68_tiny_model-weights_manifest.json
+│   └── face_recognition_model-weights_manifest.json
+└── assets/                 # App Icon 與 iOS 主畫面圖示
+    ├── icon.svg            # 高畫質 SVG 圖檔
+    ├── apple-touch-icon.png# iOS Safari 主畫面圖示 (180x180)
+    ├── icon-192.png        # PWA Icon (192x192)
+    └── icon-512.png        # PWA Icon (512x512)
 ```
 
 ---
 
-## 🚀 快速啟動與本地測試
+## 🚀 本地開發與測試
 
-使用本地 HTTP 伺服器開啟本專案：
+使用任何 HTTP 靜態伺服器開啟專案根目錄：
 
 ```bash
-# 使用 Node.js http-server
-npx http-server ./ -p 8080
-
-# 或使用 Python
+# 使用 Python 開啟
 python -m http.server 8080
+
+# 或使用 Node.js http-server
+npx http-server ./ -p 8080
 ```
 
-瀏覽器開啟 `http://localhost:8080` 即可進行測試。
+瀏覽器訪問 `http://localhost:8080` 即可測試全套離線功能。
 
 ---
 
-## 🌐 正式部署 (list.daliuren.cc)
+## 🌐 正式環境部署 (list.daliuren.cc)
 
-本專案已被上傳並部署至 GitHub 儲存庫：  
-**https://github.com/stevecjs/list-web.git**
+專案原始碼已託管於 GitHub：  
+👉 **[https://github.com/stevecjs/list-web.git](https://github.com/stevecjs/list-web.git)**
 
-正式域名部署於 **`https://list.daliuren.cc`**。
+正式網站網址：  
+👉 **[https://list.daliuren.cc](https://list.daliuren.cc)**
 
-*注意：iOS Safari 必須在 HTTPS 環境下才允許存取相機權限與安裝 PWA 主畫面小圖標。*
+> **iOS 使用者建議**：在 iPhone 13 Pro Safari 開啟網頁後，點擊底部「分享」按鈕並選擇**「加入主畫面」**，即可獲得 100% 離線、無網址列的全螢幕原生 App 點名體驗！
