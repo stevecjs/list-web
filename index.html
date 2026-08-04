@@ -159,7 +159,7 @@
           <button id="btn-filter-selected" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:text-white">挑選對象 (<span id="target-count-badge">0</span>)</button>
         </div>
         <button id="btn-open-target-modal" class="px-3 py-1.5 rounded-xl glass-card text-sky-300 font-extrabold text-xs border border-sky-500/40 hover:bg-sky-500/20 transition-all flex items-center gap-1">
-          🎯 挑選對象
+          🎯 挑選對象與群組
         </button>
       </div>
 
@@ -188,25 +188,64 @@
 
   </main>
 
-  <!-- MODAL: DYNAMIC TARGET SELECTOR -->
+  <!-- MODAL: DYNAMIC TARGET SELECTOR & GROUP MANAGEMENT -->
   <div id="target-modal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="glass-panel w-full max-w-sm rounded-2xl p-4 border border-slate-700 space-y-3 shadow-2xl">
+      <!-- Modal Header -->
       <div class="flex justify-between items-center border-b border-slate-800 pb-2.5">
-        <h3 class="font-extrabold text-sm text-white">🎯 挑選本次點名對象</h3>
+        <h3 class="font-extrabold text-sm text-white">🎯 挑選點名對象與群組</h3>
         <button id="btn-close-modal" class="text-slate-400 hover:text-white font-extrabold text-xl">&times;</button>
       </div>
-      <div class="flex justify-between items-center text-xs">
+
+      <!-- Saved Group Selector Pills & Add Group Button -->
+      <div class="space-y-2">
+        <div class="flex justify-between items-center text-xs">
+          <span class="font-bold text-slate-300">常用快速群組：</span>
+          <button id="btn-create-group-prompt" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 hover:bg-emerald-500/30 transition-all">
+            ➕ 新增群組
+          </button>
+        </div>
+
+        <div id="group-pills-container" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800">
+          <!-- Dynamic Group Pills -->
+        </div>
+      </div>
+
+      <!-- Group Edit / Create Bar -->
+      <div id="group-edit-bar" class="hidden p-2.5 bg-slate-900 rounded-xl border border-sky-500/40 space-y-2">
+        <div class="flex justify-between items-center">
+          <span id="group-edit-title" class="text-xs font-bold text-sky-300">編輯群組</span>
+          <button id="btn-cancel-group-edit" class="text-xs text-slate-400 hover:text-white font-bold">&times;</button>
+        </div>
+        <div class="flex gap-2">
+          <input 
+            type="text" 
+            id="group-name-input" 
+            placeholder="群組名稱 (例: 遊覽車A車)" 
+            class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sky-300 text-xs font-bold focus:outline-none"
+          />
+          <button id="btn-save-group" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold rounded-lg text-xs shadow">
+            儲存群組
+          </button>
+        </div>
+      </div>
+
+      <!-- Selection Action Controls -->
+      <div class="flex justify-between items-center text-xs pt-1 border-t border-slate-800">
         <div class="space-x-1.5">
           <button id="btn-select-all" class="px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">全選</button>
           <button id="btn-deselect-all" class="px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-bold">全不選</button>
         </div>
         <span class="text-slate-300">已勾選 <b id="modal-checked-count" class="text-sky-400">0</b> 人</span>
       </div>
-      <div id="target-checklist-container" class="space-y-2 max-h-64 overflow-y-auto border border-slate-800 p-2 rounded-xl bg-slate-900/80">
-        <!-- Checklist -->
+
+      <!-- Member Checklist Container -->
+      <div id="target-checklist-container" class="space-y-2 max-h-56 overflow-y-auto border border-slate-800 p-2 rounded-xl bg-slate-900/80">
+        <!-- Member Checkbox Item -->
       </div>
+
       <button id="btn-save-target-selection" class="w-full py-2.5 bg-sky-500 hover:bg-sky-400 text-white font-extrabold rounded-xl text-xs shadow-lg">
-        確認挑選對象
+        確認套用點名對象
       </button>
     </div>
   </div>

@@ -1,6 +1,6 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Default Rear Camera ('environment') & 2-Row Responsive Zoom Control Toolbar
+ * Features Target Attendance Group Management (Create, Rename, Edit, Delete, Switch)
  * list.daliuren.cc
  */
 
@@ -9,7 +9,7 @@
 
   // --- 1. INDEXEDDB ENGINE ---
   const DB_NAME = 'ListAttendanceDB';
-  const DB_VERSION = 5;
+  const DB_VERSION = 6; // Upgraded for Group Management
   let dbInstance = null;
 
   function initDB() {
@@ -27,6 +27,10 @@
           const attendanceStore = db.createObjectStore('attendance', { keyPath: 'id' });
           attendanceStore.createIndex('memberId', 'memberId', { unique: false });
           attendanceStore.createIndex('dateStr', 'dateStr', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('groups')) {
+          const groupStore = db.createObjectStore('groups', { keyPath: 'id' });
+          groupStore.createIndex('name', 'name', { unique: false });
         }
       };
 
@@ -185,6 +189,43 @@
     });
   }
 
+  // --- 1.1 GROUP DATABASE HELPERS ---
+  function getAllGroupsDB() {
+    return initDB().then(db => {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('groups', 'readonly');
+        const store = tx.objectStore('groups');
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    });
+  }
+
+  function addOrUpdateGroupDB(groupData) {
+    return initDB().then(db => {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('groups', 'readwrite');
+        const store = tx.objectStore('groups');
+        const req = store.put(groupData);
+        req.onsuccess = () => resolve(groupData);
+        req.onerror = () => reject(req.error);
+      });
+    });
+  }
+
+  function deleteGroupDB(id) {
+    return initDB().then(db => {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('groups', 'readwrite');
+        const store = tx.objectStore('groups');
+        const req = store.delete(id);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => reject(req.error);
+      });
+    });
+  }
+
   // --- 2. AUDIO SYNTHESIZER ---
   let audioCtx = null;
   function playChimeSound() {
@@ -219,11 +260,13 @@
 
   let registeredMembers = [];
   let todayAttendance = [];
+  let savedGroups = [];
   let selectedMemberIds = new Set();
+  let editingGroupId = null; // null for creating new group, or groupId for editing
   let filterMode = 'ALL';
 
   let activeStream = null;
-  let currentFacingMode = 'environment'; // Default to Rear Camera!
+  let currentFacingMode = 'environment';
   let isAiModelLoaded = false;
   let faceMatcher = null;
   let scanIntervalId = null;
@@ -245,7 +288,7 @@
     }
   }
 
-  // --- 4. CAMERA ZOOM ENGINE (HARDWARE + DIGITAL SCALE) ---
+  // --- 4. CAMERA ZOOM ENGINE ---
   function applyZoom(zoomLevel) {
     currentZoom = parseFloat(zoomLevel);
     if (isNaN(currentZoom)) currentZoom = 1.0;
@@ -255,7 +298,6 @@
     if (zoomSlider) zoomSlider.value = currentZoom;
     if (zoomLabel) zoomLabel.textContent = `${currentZoom.toFixed(1)}x`;
 
-    // 1. Try Hardware Optical/Digital Camera Zoom via MediaTrackConstraints
     if (activeStream) {
       const videoTrack = activeStream.getVideoTracks()[0];
       if (videoTrack && videoTrack.getCapabilities) {
@@ -269,7 +311,6 @@
       }
     }
 
-    // 2. Apply Digital Scale Transform on Video Element & Face Overlay Canvas
     const video = $('main-video');
     const canvas = $('face-canvas');
     const transformStr = `scale(${currentZoom})`;
@@ -337,6 +378,7 @@
   async function refreshData() {
     registeredMembers = await getAllMembersDB();
     todayAttendance = await getAttendanceByDateDB(getTodayStr());
+    savedGroups = await getAllGroupsDB();
 
     if (selectedMemberIds.size === 0) {
       registeredMembers.forEach(m => selectedMemberIds.add(m.id));
@@ -370,7 +412,7 @@
     if (displayMembers.length === 0) {
       container.innerHTML = `
         <div class="col-span-full py-10 text-center text-slate-400 text-sm">
-          尚無成員，請在下方「新增團員」或點擊「🎯 挑選點名對象」。
+          尚無成員，請在下方「新增團員」或點擊「🎯 挑選點名對象與群組」。
         </div>
       `;
       return;
@@ -623,7 +665,7 @@
     }
   }
 
-  // --- 8. MEMBER REGISTRATION (PREVENT DUPLICATES & SUPPORT UN-SCANNED MEMBERS) ---
+  // --- 8. MEMBER REGISTRATION ---
   async function registerMemberWithAi() {
     const nameInput = $('reg-name-input');
     const name = nameInput ? nameInput.value.trim() : '';
@@ -765,8 +807,138 @@
     }
   }
 
-  // --- 10. EVENT BINDING & BOOTSTRAP ---
+  // --- 10. TARGET GROUPS MANAGEMENT LOGIC ---
+  function renderTargetModalUI() {
+    renderGroupPills();
+    renderTargetChecklist();
+  }
+
+  function renderGroupPills() {
+    const container = $('group-pills-container');
+    if (!container) return;
+
+    let html = `
+      <button data-grp-action="all" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+        selectedMemberIds.size === registeredMembers.length && registeredMembers.length > 0
+          ? 'bg-sky-500 text-white border-sky-400 shadow-md'
+          : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+      }">
+        全體成員
+      </button>
+    `;
+
+    savedGroups.forEach(g => {
+      const isCurrentActive = g.memberIds.length > 0 && g.memberIds.every(id => selectedMemberIds.has(id)) && selectedMemberIds.size === g.memberIds.length;
+      html += `
+        <div class="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${
+          isCurrentActive
+            ? 'bg-sky-500 text-white border-sky-400 shadow-md'
+            : 'bg-slate-800 text-slate-300 border-slate-700'
+        }">
+          <span data-grp-apply-id="${g.id}" class="cursor-pointer font-extrabold hover:underline">
+            ${g.name} (${g.memberIds.length}人)
+          </span>
+          <button data-grp-edit-id="${g.id}" class="text-[11px] hover:text-sky-300 ml-0.5 opacity-80 hover:opacity-100" title="編輯群組名稱與成員">✏️</button>
+          <button data-grp-del-id="${g.id}" class="text-[11px] hover:text-rose-300 opacity-80 hover:opacity-100" title="刪除群組">🗑️</button>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+
+    // Bind Group Action Events
+    const btnAll = container.querySelector('[data-grp-action="all"]');
+    if (btnAll) {
+      btnAll.addEventListener('click', () => {
+        registeredMembers.forEach(m => selectedMemberIds.add(m.id));
+        renderTargetModalUI();
+      });
+    }
+
+    container.querySelectorAll('[data-grp-apply-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.grpApplyId;
+        const group = savedGroups.find(g => g.id === id);
+        if (group) {
+          selectedMemberIds.clear();
+          group.memberIds.forEach(mId => selectedMemberIds.add(mId));
+          renderTargetModalUI();
+        }
+      });
+    });
+
+    container.querySelectorAll('[data-grp-edit-id]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.grpEditId;
+        const group = savedGroups.find(g => g.id === id);
+        if (group) {
+          editingGroupId = group.id;
+          const editBar = $('group-edit-bar');
+          const title = $('group-edit-title');
+          const input = $('group-name-input');
+
+          if (title) title.textContent = `✏️ 編輯群組「${group.name}」`;
+          if (input) input.value = group.name;
+          if (editBar) editBar.classList.remove('hidden');
+
+          selectedMemberIds.clear();
+          group.memberIds.forEach(mId => selectedMemberIds.add(mId));
+          renderTargetModalUI();
+        }
+      });
+    });
+
+    container.querySelectorAll('[data-grp-del-id]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.grpDelId;
+        const group = savedGroups.find(g => g.id === id);
+        if (group && confirm(`確定要刪除群組「${group.name}」嗎？`)) {
+          await deleteGroupDB(id);
+          savedGroups = await getAllGroupsDB();
+          renderTargetModalUI();
+        }
+      });
+    });
+  }
+
+  function renderTargetChecklist() {
+    const container = $('target-checklist-container');
+    const countEl = $('modal-checked-count');
+
+    if (countEl) countEl.textContent = selectedMemberIds.size;
+    if (!container) return;
+
+    if (registeredMembers.length === 0) {
+      container.innerHTML = `<div class="text-center py-4 text-slate-400 text-xs">尚無已註冊團員</div>`;
+      return;
+    }
+
+    container.innerHTML = registeredMembers.map(m => {
+      const isChecked = selectedMemberIds.has(m.id);
+      return `
+        <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer hover:border-slate-700">
+          <span class="text-sm font-bold text-white">${m.name}</span>
+          <input type="checkbox" data-id="${m.id}" class="chk-mem-item w-5 h-5 accent-sky-500 rounded" ${isChecked ? 'checked' : ''} />
+        </label>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.chk-mem-item').forEach(chk => {
+      chk.addEventListener('change', () => {
+        const id = chk.dataset.id;
+        if (chk.checked) selectedMemberIds.add(id);
+        else selectedMemberIds.delete(id);
+        if (countEl) countEl.textContent = selectedMemberIds.size;
+        renderGroupPills();
+      });
+    });
+  }
+
+  // --- 11. EVENT BINDING & BOOTSTRAP ---
   function bindEvents() {
+    // Collapsible Camera Section
     const btnToggleCamBox = $('btn-toggle-camera-box');
     const camBoxContent = $('camera-box-content');
     const camToggleIcon = $('camera-toggle-icon');
@@ -787,7 +959,7 @@
       });
     }
 
-    // Zoom Slider & Preset Buttons
+    // Zoom Controls
     const zoomSlider = $('zoom-slider');
     if (zoomSlider) {
       zoomSlider.addEventListener('input', (e) => {
@@ -802,6 +974,7 @@
       });
     });
 
+    // Camera Buttons
     const btnOpenCam = $('btn-open-camera');
     const btnSwitchCam = $('btn-switch-camera');
     const btnRefreshCam = $('btn-refresh-camera');
@@ -887,7 +1060,7 @@
       });
     }
 
-    // Target Selection Modal
+    // Target Selection Modal & Group Event Bindings
     const btnOpenModal = $('btn-open-target-modal');
     const btnCloseModal = $('btn-close-modal');
     const modal = $('target-modal');
@@ -895,9 +1068,13 @@
     const btnSelectAll = $('btn-select-all');
     const btnDeselectAll = $('btn-deselect-all');
 
+    const btnPromptCreateGrp = $('btn-create-group-prompt');
+    const btnSaveGrp = $('btn-save-group');
+    const btnCancelGrpEdit = $('btn-cancel-group-edit');
+
     if (btnOpenModal && modal) {
       btnOpenModal.addEventListener('click', () => {
-        renderTargetChecklist();
+        renderTargetModalUI();
         modal.classList.remove('hidden');
       });
     }
@@ -916,14 +1093,73 @@
     if (btnSelectAll) {
       btnSelectAll.addEventListener('click', () => {
         registeredMembers.forEach(m => selectedMemberIds.add(m.id));
-        renderTargetChecklist();
+        renderTargetModalUI();
       });
     }
 
     if (btnDeselectAll) {
       btnDeselectAll.addEventListener('click', () => {
         selectedMemberIds.clear();
-        renderTargetChecklist();
+        renderTargetModalUI();
+      });
+    }
+
+    // Group Edit / Create Handlers
+    if (btnPromptCreateGrp) {
+      btnPromptCreateGrp.addEventListener('click', () => {
+        editingGroupId = null;
+        const editBar = $('group-edit-bar');
+        const title = $('group-edit-title');
+        const input = $('group-name-input');
+
+        if (title) title.textContent = '➕ 新增自訂點名群組';
+        if (input) input.value = '';
+        if (editBar) editBar.classList.remove('hidden');
+      });
+    }
+
+    if (btnCancelGrpEdit) {
+      btnCancelGrpEdit.addEventListener('click', () => {
+        editingGroupId = null;
+        const editBar = $('group-edit-bar');
+        if (editBar) editBar.classList.add('hidden');
+      });
+    }
+
+    if (btnSaveGrp) {
+      btnSaveGrp.addEventListener('click', async () => {
+        const input = $('group-name-input');
+        const name = input ? input.value.trim() : '';
+
+        if (!name) {
+          alert('請輸入群組名稱');
+          if (input) input.focus();
+          return;
+        }
+
+        const groupMembers = Array.from(selectedMemberIds);
+        if (groupMembers.length === 0) {
+          alert('請至少勾選 1 位團員作為此群組的成員');
+          return;
+        }
+
+        const groupData = {
+          id: editingGroupId || ('grp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)),
+          name: name,
+          memberIds: groupMembers,
+          updatedAt: new Date().toISOString()
+        };
+
+        await addOrUpdateGroupDB(groupData);
+        savedGroups = await getAllGroupsDB();
+        editingGroupId = null;
+
+        const editBar = $('group-edit-bar');
+        if (editBar) editBar.classList.add('hidden');
+        if (input) input.value = '';
+
+        playChimeSound();
+        renderTargetModalUI();
       });
     }
 
@@ -950,39 +1186,7 @@
     }
   }
 
-  function renderTargetChecklist() {
-    const container = $('target-checklist-container');
-    const countEl = $('modal-checked-count');
-
-    if (countEl) countEl.textContent = selectedMemberIds.size;
-    if (!container) return;
-
-    if (registeredMembers.length === 0) {
-      container.innerHTML = `<div class="text-center py-4 text-slate-400 text-xs">尚無已註冊團員</div>`;
-      return;
-    }
-
-    container.innerHTML = registeredMembers.map(m => {
-      const isChecked = selectedMemberIds.has(m.id);
-      return `
-        <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer">
-          <span class="text-sm font-bold text-white">${m.name}</span>
-          <input type="checkbox" data-id="${m.id}" class="chk-mem-item w-5 h-5 accent-sky-500 rounded" ${isChecked ? 'checked' : ''} />
-        </label>
-      `;
-    }).join('');
-
-    container.querySelectorAll('.chk-mem-item').forEach(chk => {
-      chk.addEventListener('change', () => {
-        const id = chk.dataset.id;
-        if (chk.checked) selectedMemberIds.add(id);
-        else selectedMemberIds.delete(id);
-        if (countEl) countEl.textContent = selectedMemberIds.size;
-      });
-    });
-  }
-
-  // --- 11. BOOTSTRAP ---
+  // --- 12. BOOTSTRAP ---
   function boot() {
     bindEvents();
     refreshData();
