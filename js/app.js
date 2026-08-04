@@ -1,6 +1,6 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Target Attendance Group Management (Create, Rename, Edit, Delete, Switch)
+ * Features Simplified App Title, Clean Vector Badge & Collapsible Roster Block
  * list.daliuren.cc
  */
 
@@ -9,7 +9,7 @@
 
   // --- 1. INDEXEDDB ENGINE ---
   const DB_NAME = 'ListAttendanceDB';
-  const DB_VERSION = 6; // Upgraded for Group Management
+  const DB_VERSION = 6;
   let dbInstance = null;
 
   function initDB() {
@@ -262,7 +262,7 @@
   let todayAttendance = [];
   let savedGroups = [];
   let selectedMemberIds = new Set();
-  let editingGroupId = null; // null for creating new group, or groupId for editing
+  let editingGroupId = null;
   let filterMode = 'ALL';
 
   let activeStream = null;
@@ -364,7 +364,7 @@
 
     const badge = $('ai-vector-count-badge');
     if (badge) {
-      badge.textContent = `比對庫: ${registeredMembers.length} 人 (${totalVectors} 筆特徵)`;
+      badge.textContent = `比對庫: ${registeredMembers.length} 人`;
     }
 
     if (labeledDescriptors.length > 0 && typeof faceapi !== 'undefined') {
@@ -846,7 +846,6 @@
 
     container.innerHTML = html;
 
-    // Bind Group Action Events
     const btnAll = container.querySelector('[data-grp-action="all"]');
     if (btnAll) {
       btnAll.addEventListener('click', () => {
@@ -955,6 +954,27 @@
           camBoxContent.classList.add('hidden');
           if (camToggleIcon) camToggleIcon.textContent = '🔽';
           if (camToggleText) camToggleText.textContent = '展開鏡頭區塊';
+        }
+      });
+    }
+
+    // Collapsible Master Roster Section
+    const btnToggleRosterBox = $('btn-toggle-roster-box');
+    const rosterBoxContent = $('roster-box-content');
+    const rosterToggleIcon = $('roster-toggle-icon');
+    const rosterToggleText = $('roster-toggle-text');
+
+    if (btnToggleRosterBox && rosterBoxContent) {
+      btnToggleRosterBox.addEventListener('click', () => {
+        const isHidden = rosterBoxContent.classList.contains('hidden');
+        if (isHidden) {
+          rosterBoxContent.classList.remove('hidden');
+          if (rosterToggleIcon) rosterToggleIcon.textContent = '🔼';
+          if (rosterToggleText) rosterToggleText.textContent = '收起名冊';
+        } else {
+          rosterBoxContent.classList.add('hidden');
+          if (rosterToggleIcon) rosterToggleIcon.textContent = '🔽';
+          if (rosterToggleText) rosterToggleText.textContent = '展開名冊';
         }
       });
     }
