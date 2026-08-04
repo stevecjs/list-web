@@ -1,21 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="0%" stop-color="#070a14" />
       <stop offset="50%" stop-color="#0f172a" />
-      <stop offset="100%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
     </linearGradient>
-    <linearGradient id="glyph" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="glyph" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="60%" stop-color="#f0f9ff" />
       <stop offset="100%" stop-color="#38bdf8" />
     </linearGradient>
     <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="10" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#38bdf8" flood-opacity="0.6"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.8"/>
     </filter>
   </defs>
-  <rect width="512" height="512" rx="120" fill="url(#bg)" />
-  <circle cx="256" cy="256" r="200" fill="none" stroke="rgba(56, 189, 248, 0.3)" stroke-width="8" />
-  <circle cx="256" cy="256" r="180" fill="none" stroke="rgba(56, 189, 248, 0.6)" stroke-width="3" stroke-dasharray="12, 12" />
-  <text x="256" y="270" dominant-baseline="middle" text-anchor="middle" fill="url(#glyph)" font-family="-apple-system, BlinkMacSystemFont, 'PingFang TC', 'SF Pro Display', 'Microsoft JhengHei', sans-serif" font-size="180" font-weight="900" filter="url(#glow)">點名</text>
+
+  <!-- Premium Rounded Container -->
+  <rect width="512" height="512" rx="115" fill="url(#bg)" />
+
+  <!-- Outer Glass Neon Rings -->
+  <circle cx="256" cy="256" r="205" fill="none" stroke="rgba(56, 189, 248, 0.25)" stroke-width="10" />
+  <circle cx="256" cy="256" r="185" fill="none" stroke="rgba(56, 189, 248, 0.6)" stroke-width="4" stroke-dasharray="16, 12" />
+
+  <!-- Premium Text Glyph -->
+  <text x="256" y="278" dominant-baseline="middle" text-anchor="middle" fill="url(#glyph)" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'PingFang TC', 'SF Pro Display', 'Microsoft JhengHei', sans-serif" font-size="270" font-weight="900" filter="url(#glow)">點</text>
 </svg>
