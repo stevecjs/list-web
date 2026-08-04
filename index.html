@@ -7,7 +7,7 @@
   
   <!-- PWA & iOS Safari Meta Tags -->
   <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#020617">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="點">
@@ -19,331 +19,144 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-sky-500 selection:text-white">
 
-  <!-- Global On-Screen Error Diagnostic Banner -->
-  <div id="global-error-banner" class="hidden sticky top-0 z-50 bg-rose-900/95 text-rose-100 px-4 py-2 text-xs font-mono font-bold flex justify-between items-center border-b border-rose-500 shadow-xl">
-    <div class="flex items-center space-x-2">
-      <span>⚠️ 系統告警：</span>
-      <span id="global-error-msg">--</span>
-    </div>
-    <button onclick="this.parentElement.classList.add('hidden')" class="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold">&times;</button>
-  </div>
-
   <!-- Top App Bar -->
-  <header class="sticky top-0 z-40 glass-panel px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-    <div class="flex items-center space-x-2.5">
-      <div class="w-9 h-9 rounded-xl overflow-hidden shadow-lg shadow-sky-500/20 border border-sky-400/30 flex items-center justify-center bg-gradient-to-br from-slate-900 via-sky-950 to-sky-700">
-        <span class="font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-300 to-white text-xl leading-none">點</span>
+  <header class="sticky top-0 z-40 glass-panel px-4 py-3 border-b border-slate-800 flex items-center justify-between shadow-lg">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-sky-500/20 border border-sky-400/40 flex items-center justify-center bg-gradient-to-br from-slate-900 via-sky-950 to-sky-600">
+        <span class="font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-300 to-white text-2xl leading-none">點</span>
       </div>
       <div>
-        <h1 class="text-base font-bold tracking-tight text-white">
-          點名系統
+        <h1 class="text-base font-extrabold tracking-tight text-white">
+          國外旅遊點名系統
         </h1>
-        <div class="text-[11px] text-slate-300 flex items-center gap-1.5">
-          <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-          <span id="status-text">系統就緒</span>
+        <div class="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          100% 離線可用
         </div>
       </div>
     </div>
-    <div class="flex items-center space-x-2">
-      <!-- Force Update PWA Button -->
-      <button id="btn-update-pwa" title="強制清除舊快取並更新至最新版" class="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-xs font-bold border border-sky-500/40 flex items-center gap-1 active:scale-95 transition-all">
-        🔄 更新網頁
-      </button>
-      <div id="date-display" class="text-xs font-mono text-slate-200 font-bold hidden sm:block">--:--:--</div>
-    </div>
+    <button id="btn-update-pwa" class="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-xs font-extrabold border border-sky-500/40 active:scale-95 transition-all flex items-center gap-1 shadow-md">
+      🔄 更新網頁
+    </button>
   </header>
 
   <!-- Main Content Viewport -->
-  <main class="flex-1 max-w-md w-full mx-auto p-4 space-y-4 mb-16">
+  <main class="flex-1 max-w-md w-full mx-auto p-3.5 space-y-4 mb-8">
 
-    <!-- TAB 1: REAL-TIME ATTENDANCE SCAN & BOARD -->
-    <section id="tab-scan" class="tab-content space-y-4">
-      
-      <!-- Camera Preview Box -->
-      <div class="camera-container">
-        <video id="scan-video" class="camera-video" autoplay playsinline muted></video>
-        <canvas id="scan-canvas" class="camera-canvas"></canvas>
+    <!-- CAMERA & QUICK MEMBER REGISTRATION BOX -->
+    <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3.5 shadow-xl">
+      <h2 class="text-sm font-extrabold text-white flex items-center gap-2">
+        <span class="text-sky-400 text-base">📷</span> 團員相機與相片註冊
+      </h2>
+
+      <!-- Camera Preview Window -->
+      <div class="camera-container rounded-2xl overflow-hidden aspect-video relative bg-slate-900 border border-slate-800">
+        <video id="main-video" class="camera-video" autoplay playsinline muted></video>
         <div class="scan-line"></div>
-
-        <!-- Success Animation Banner -->
-        <div id="scan-success-banner" class="success-banner hidden">
-          <div class="bg-emerald-500/95 backdrop-blur-md text-white px-5 py-2.5 rounded-full shadow-xl flex items-center space-x-2.5 border border-emerald-300/40">
-            <svg class="w-6 h-6 text-white animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <div>
-              <div id="banner-name" class="font-bold text-sm leading-tight text-white">--</div>
-              <div class="text-[11px] text-emerald-100">點名成功 ‧ <span id="banner-time">00:00</span></div>
-            </div>
-          </div>
-        </div>
       </div>
 
-      <!-- Live Scan Debug / Status Bar -->
-      <div id="scan-debug-info" class="text-[11px] font-mono text-slate-300 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800 flex justify-between items-center">
-        <span>AI 比對庫: <b id="dbg-member-count">0</b> 人 (<b id="dbg-vector-count">0</b> 特徵碼)</span>
-        <span>門檻: <b id="dbg-threshold">0.60</b></span>
+      <div id="reg-status-msg" class="text-xs font-bold text-sky-300 text-center min-h-[18px]">
+        點擊開啟相機即可拍照註冊團員
       </div>
 
-      <!-- Scan Control Buttons -->
-      <div class="flex gap-2">
-        <button id="btn-start-scan" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold shadow-lg shadow-sky-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-          </svg>
-          開啟相機辨識
-        </button>
-        <button id="btn-switch-camera" class="hidden py-3 px-4 rounded-xl glass-card text-slate-100 hover:bg-slate-700/60 font-semibold active:scale-[0.98] transition-all flex items-center gap-1.5 border border-slate-600">
-          <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-          </svg>
-          切換鏡頭
-        </button>
-      </div>
-
-      <!-- Attendance Board Header & Controls -->
-      <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3">
-        <div class="flex justify-between items-center border-b border-slate-800 pb-2.5">
-          <div>
-            <h2 class="text-sm font-bold text-white">即時點名看板</h2>
-            <p class="text-xs text-slate-300">目前應點名對象 (點擊可手動補點)</p>
-          </div>
-          <div class="flex items-center space-x-2">
-            <div class="text-right">
-              <span class="text-xl font-black text-emerald-400" id="present-count">0</span>
-              <span class="text-sm text-slate-300 font-medium"> / <span id="total-count">0</span> 人</span>
-            </div>
-            <!-- One-click Reset Attendance Board Button -->
-            <button id="btn-clear-board" title="一鍵清空看板紀錄" class="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold border border-rose-500/40 flex items-center gap-1 transition-colors">
-              🧹 清空看板
-            </button>
-          </div>
-        </div>
-
-        <!-- Dynamic Purpose Selection Bar -->
-        <div class="flex items-center justify-between text-xs pt-1">
-          <div class="flex items-center gap-1">
-            <button id="btn-filter-all" class="px-2.5 py-1 rounded-lg bg-sky-500 text-white font-bold">全體成員</button>
-            <button id="btn-filter-selected-only" class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-medium hover:text-white">僅勾選對象 (<span id="selected-target-count">0</span>人)</button>
-          </div>
-          <button id="btn-open-target-selector" class="px-2.5 py-1 rounded-lg glass-card text-sky-300 font-bold border border-sky-500/40 hover:bg-sky-500/20 transition-all flex items-center gap-1">
-            🎯 挑選點名對象
+      <!-- Controls -->
+      <div class="space-y-2">
+        <div class="flex gap-2">
+          <button id="btn-open-camera" class="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-600 transition-all">
+            📷 開啟相機
+          </button>
+          <button id="btn-switch-camera" class="hidden py-2.5 px-3 rounded-xl glass-card text-sky-300 font-bold text-xs border border-slate-600">
+            🔄 切換鏡頭
           </button>
         </div>
 
-        <!-- Attendance Member Cards Grid -->
-        <div id="board-member-list" class="grid grid-cols-1 gap-2 pt-1 max-h-[38vh] overflow-y-auto pr-1">
-          <!-- Member items dynamically populated -->
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 2: MEMBER REGISTRATION & MULTI-FEATURE CAPTURE -->
-    <section id="tab-register" class="tab-content hidden space-y-4">
-      <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-4">
-        <div class="flex items-center justify-between">
-          <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-            </svg>
-            團員名單與特徵採集
-          </h2>
-          <button id="btn-reset-reg-form" class="px-2.5 py-1 rounded-lg glass-card text-slate-200 hover:text-white text-xs flex items-center gap-1 transition-colors border border-slate-600">
-            <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-            </svg>
-            重置表格
-          </button>
-        </div>
-
-        <div class="p-3 bg-sky-950/40 border border-sky-500/30 rounded-xl text-xs text-sky-200 space-y-1">
-          <div class="font-bold text-sky-300">💡 多特徵快辨訣竅：</div>
-          <div>輸入相同姓名，可連續拍攝 <b>正面、側面、笑臉或眼鏡</b>。同一個人採集 2~4 筆特徵碼可大幅提升辨識速度！</div>
-        </div>
-
-        <div class="space-y-1">
-          <label class="text-xs font-semibold text-slate-200">團員姓名：</label>
+        <div class="flex gap-2">
           <input 
             type="text" 
             id="reg-name-input" 
-            placeholder="請輸入團員姓名 (例: 王小明)" 
-            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-600 text-white placeholder-slate-400 text-sm focus:outline-none focus:border-sky-400 transition-colors"
+            placeholder="請輸入姓名 (例: 王小明)" 
+            class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border-2 border-sky-400 text-sky-300 placeholder-slate-400 font-bold text-sm focus:outline-none"
           />
-        </div>
-
-        <!-- Registration Camera Box -->
-        <div class="camera-container aspect-square max-h-56 mx-auto">
-          <video id="reg-video" class="camera-video" autoplay playsinline muted></video>
-          <canvas id="reg-canvas" class="camera-canvas"></canvas>
-        </div>
-
-        <div id="reg-status-msg" class="text-xs font-semibold text-slate-300 text-center min-h-[20px]">
-          請點擊開啟相機並對準臉部
-        </div>
-
-        <div class="flex flex-col gap-2">
-          <div class="flex gap-2">
-            <button id="btn-start-reg-camera" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-600 transition-colors">
-              📷 開啟註冊相機
-            </button>
-            <button id="btn-switch-reg-camera" class="hidden py-2.5 px-3 rounded-xl glass-card text-sky-300 text-xs font-bold flex items-center gap-1 border border-slate-600">
-              切換鏡頭
-            </button>
-          </div>
-
-          <div id="reg-action-buttons" class="hidden flex gap-2">
-            <button id="btn-capture-face" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/25 transition-all">
-              🤖 AI人臉特徵擷取
-            </button>
-            <button id="btn-capture-photo-direct" class="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-lg shadow-sky-500/25 transition-all">
-              📷 拍照直接註冊 (防卡關)
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Registered Members List -->
-      <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3">
-        <h3 class="text-sm font-bold text-white">已註冊團員總名冊 (點擊可追加特徵)</h3>
-        <div id="registered-member-list" class="space-y-2 max-h-60 overflow-y-auto">
-          <!-- Member items -->
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 3: ATTENDANCE LOGS & CLIPBOARD COPY -->
-    <section id="tab-logs" class="tab-content hidden space-y-4">
-      <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <h2 class="text-base font-bold text-white">點名紀錄與複製</h2>
-          <button id="btn-copy-clipboard" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all border border-sky-400/30">
-            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
-            </svg>
-            一鍵複製點名紀錄至剪貼簿
-          </button>
-        </div>
-
-        <div class="flex items-center gap-2 text-xs">
-          <div class="flex-1 flex items-center space-x-1.5">
-            <label class="text-slate-200 font-semibold whitespace-nowrap">選擇日期：</label>
-            <input type="date" id="log-date-input" class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-400 font-medium" />
-          </div>
-        </div>
-
-        <div class="relative">
-          <textarea id="log-preview-text" readonly class="w-full h-64 p-3 rounded-xl bg-slate-900 text-emerald-300 font-mono text-xs focus:outline-none resize-none leading-relaxed border border-slate-700"></textarea>
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 4: SYSTEM SETTINGS -->
-    <section id="tab-settings" class="tab-content hidden space-y-4">
-      <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-4">
-        <h2 class="text-base font-bold text-white">系統設定與診斷</h2>
-
-        <div class="space-y-3 text-xs">
-          <div class="flex justify-between py-2 border-b border-slate-800">
-            <span class="text-slate-300">離線快取引擎</span>
-            <span class="text-emerald-400 font-bold">PWA ServiceWorker 就緒</span>
-          </div>
-          <div class="flex justify-between py-2 border-b border-slate-800">
-            <span class="text-slate-300">人臉辨識模組</span>
-            <span id="diag-model-status" class="text-slate-100">載入診斷中...</span>
-          </div>
-
-          <!-- PWA Force Update Button in Settings -->
-          <div class="py-2 border-b border-slate-800 flex justify-between items-center">
-            <div>
-              <div class="text-slate-200 font-semibold">強制更新 PWA 網頁</div>
-              <div class="text-[10px] text-slate-400">清除舊版離線快取並載入最新版本</div>
-            </div>
-            <button id="btn-update-pwa-settings" class="px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded-lg text-xs transition-colors">
-              🔄 立即更新
-            </button>
-          </div>
-
-          <!-- Sensitivity threshold slider -->
-          <div class="py-2 border-b border-slate-800 space-y-1.5">
-            <div class="flex justify-between">
-              <span class="text-slate-300 font-semibold">歐氏距離門檻 (靈敏度)</span>
-              <span id="threshold-value" class="text-sky-300 font-mono font-bold">0.60</span>
-            </div>
-            <input type="range" id="threshold-input" min="0.45" max="0.75" step="0.01" value="0.60" class="w-full accent-sky-400" />
-            <p class="text-[10px] text-slate-400">適度調高門檻 (例如 0.60~0.65) 可大幅提高辨識成功率。</p>
-          </div>
-        </div>
-
-        <div class="pt-2">
-          <button id="btn-clear-data" class="w-full py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold border border-rose-500/40 transition-colors">
-            ⚠️ 清除所有 IndexedDB 本地資料
+          <button id="btn-photo-register" class="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 active:scale-95 transition-all">
+            📷 拍照註冊
           </button>
         </div>
       </div>
-    </section>
+    </div>
+
+    <!-- LIVE ATTENDANCE BOARD -->
+    <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3.5 shadow-xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="text-base font-extrabold text-white">即時點名看板</h2>
+          <p class="text-xs text-slate-300">點擊團員卡片即可手動完成點名</p>
+        </div>
+        <div class="text-right">
+          <span class="text-2xl font-black text-emerald-400" id="present-count">0</span>
+          <span class="text-sm text-slate-300 font-bold"> / <span id="total-count">0</span> 人</span>
+        </div>
+      </div>
+
+      <!-- Action Toolbar -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+        <div class="flex items-center gap-1.5">
+          <button id="btn-filter-all" class="px-3 py-1.5 rounded-xl bg-sky-500 text-white font-extrabold text-xs shadow-md">全體成員</button>
+          <button id="btn-filter-selected" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:text-white">挑選對象 (<span id="target-count-badge">0</span>)</button>
+        </div>
+        <button id="btn-open-target-modal" class="px-3 py-1.5 rounded-xl glass-card text-sky-300 font-extrabold text-xs border border-sky-500/40 hover:bg-sky-500/20 transition-all flex items-center gap-1">
+          🎯 挑選對象
+        </button>
+      </div>
+
+      <div class="flex gap-2 pt-1">
+        <button id="btn-clear-board" class="flex-1 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold border border-rose-500/40 flex items-center justify-center gap-1">
+          🧹 清空看板紀錄
+        </button>
+        <button id="btn-copy-logs" class="flex-1 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white text-xs font-extrabold shadow-md flex items-center justify-center gap-1">
+          📋 複製點名紀錄
+        </button>
+      </div>
+
+      <!-- Attendance Cards Grid -->
+      <div id="board-member-grid" class="grid grid-cols-1 gap-2.5 pt-2 max-h-[50vh] overflow-y-auto pr-1">
+        <!-- Dynamic Cards -->
+      </div>
+    </div>
+
+    <!-- REGISTERED MEMBERS MASTER LIST -->
+    <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3">
+      <h3 class="text-sm font-extrabold text-white">團員總名冊</h3>
+      <div id="registered-member-list" class="space-y-2 max-h-48 overflow-y-auto">
+        <!-- Member Items -->
+      </div>
+    </div>
 
   </main>
 
-  <!-- MODAL: DYNAMIC PURPOSE / TARGET SELECTOR MODAL -->
-  <div id="target-selector-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="glass-panel w-full max-w-sm rounded-2xl p-4 border border-slate-700 space-y-3">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-        <h3 class="font-bold text-sm text-white">🎯 挑選本次點名對象</h3>
-        <button id="btn-close-modal" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+  <!-- MODAL: DYNAMIC TARGET SELECTOR -->
+  <div id="target-modal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="glass-panel w-full max-w-sm rounded-2xl p-4 border border-slate-700 space-y-3 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2.5">
+        <h3 class="font-extrabold text-sm text-white">🎯 挑選本次點名對象</h3>
+        <button id="btn-close-modal" class="text-slate-400 hover:text-white font-extrabold text-xl">&times;</button>
       </div>
       <div class="flex justify-between items-center text-xs">
-        <div class="space-x-1">
-          <button id="btn-select-all" class="px-2 py-1 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">全選</button>
-          <button id="btn-deselect-all" class="px-2 py-1 rounded bg-slate-800 text-slate-300 font-medium">全不選</button>
+        <div class="space-x-1.5">
+          <button id="btn-select-all" class="px-2.5 py-1 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">全選</button>
+          <button id="btn-deselect-all" class="px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-bold">全不選</button>
         </div>
-        <span class="text-slate-400">已勾選 <b id="modal-checked-count" class="text-sky-400">0</b> 人</span>
+        <span class="text-slate-300">已勾選 <b id="modal-checked-count" class="text-sky-400">0</b> 人</span>
       </div>
-      <div id="modal-member-checklist" class="space-y-1.5 max-h-64 overflow-y-auto border border-slate-800 p-2 rounded-xl bg-slate-900/60">
-        <!-- Dynamic checklist items -->
+      <div id="target-checklist-container" class="space-y-2 max-h-64 overflow-y-auto border border-slate-800 p-2 rounded-xl bg-slate-900/80">
+        <!-- Checklist -->
       </div>
-      <button id="btn-save-target-selection" class="w-full py-2.5 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded-xl text-xs shadow-lg transition-all">
-        確認挑選名單
+      <button id="btn-save-target-selection" class="w-full py-2.5 bg-sky-500 hover:bg-sky-400 text-white font-extrabold rounded-xl text-xs shadow-lg">
+        確認挑選對象
       </button>
     </div>
   </div>
 
-  <!-- Bottom Navigation Bar -->
-  <nav class="fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-slate-800 px-2 py-2">
-    <div class="max-w-md mx-auto flex justify-around items-center">
-      <button data-tab="scan" class="nav-tab nav-tab-active text-sky-400 flex flex-col items-center gap-1 py-1 px-3">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-        </svg>
-        <span class="text-[10px] font-bold">即時點名</span>
-      </button>
-
-      <button data-tab="register" class="nav-tab text-slate-400 flex flex-col items-center gap-1 py-1 px-3">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-        </svg>
-        <span class="text-[10px] font-bold">團員與特徵</span>
-      </button>
-
-      <button data-tab="logs" class="nav-tab text-slate-400 flex flex-col items-center gap-1 py-1 px-3">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
-        </svg>
-        <span class="text-[10px] font-bold">紀錄複製</span>
-      </button>
-
-      <button data-tab="settings" class="nav-tab text-slate-400 flex flex-col items-center gap-1 py-1 px-3">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-        </svg>
-        <span class="text-[10px] font-bold">系統設定</span>
-      </button>
-    </div>
-  </nav>
-
-  <!-- Load Scripts -->
-  <script src="./js/face-api.min.js"></script>
-  <script type="module" src="./js/app.js"></script>
+  <!-- Load Standalone App Script -->
+  <script src="./js/app.js"></script>
 </body>
 </html>
