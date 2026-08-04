@@ -1,6 +1,6 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Real-time Euclidean Distance Monitor, Camera Refresh Button & Automatic Bounding Box Matcher
+ * Features Real-time Euclidean Distance Monitor & Pure AI Feature Registration
  * list.daliuren.cc
  */
 
@@ -263,7 +263,7 @@
       await rebuildFaceMatcher();
     } catch (err) {
       console.warn('Face models load warning:', err);
-      updateAiStatus('已開啟相片註冊與點名看板模式', 'yellow');
+      updateAiStatus('相機就緒 (模型準備中)', 'yellow');
     }
   }
 
@@ -363,7 +363,7 @@
             <div>
               <div class="font-extrabold text-base text-white flex items-center gap-1.5">
                 ${m.name}
-                <span class="text-[10px] text-sky-400">(${vecCount > 0 ? vecCount + '筆AI特徵' : '照片'})</span>
+                <span class="text-[10px] text-sky-400">(${vecCount}筆AI特徵)</span>
               </div>
               <div class="text-xs font-semibold ${isAttended ? 'text-emerald-400' : 'text-slate-400'}">
                 ${isAttended ? `✓ 已出席 (${attRecord.timeStr})` : '未出席'}
@@ -411,7 +411,7 @@
             </div>
             <div>
               <div class="font-bold text-sm text-white">${m.name}</div>
-              <div class="text-[10px] text-sky-400 font-mono">📸 ${vecCount > 0 ? vecCount + ' 筆 128維AI特徵向量' : '照片註冊'}</div>
+              <div class="text-[10px] text-sky-400 font-mono">📸 ${vecCount} 筆 128維AI特徵向量</div>
             </div>
           </div>
           <button data-del-id="${m.id}" class="btn-del-mem px-3 py-1 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 rounded-lg text-xs font-bold transition-colors">
@@ -580,7 +580,7 @@
     }
   }
 
-  // --- 7. REGISTRATION MODULE WITH AI FEATURE EXTRACTION ---
+  // --- 7. PURE AI FEATURE REGISTRATION MODULE ---
   async function registerMemberWithAi() {
     const nameInput = $('reg-name-input');
     const name = nameInput ? nameInput.value.trim() : '';
@@ -595,7 +595,7 @@
     const statusMsg = $('reg-status-msg');
 
     if (!video || video.videoWidth === 0) {
-      alert('相機尚未開啟，請先點擊「開啟鏡頭」。');
+      alert('相機尚未開啟，請先點擊「開啟鏡頭並啟動 AI 辨識」。');
       return;
     }
 
@@ -611,11 +611,10 @@
       }
 
       if (!detection) {
-        if (confirm(`🤖 AI 未能從目前角度捕捉到臉部特徵。\n\n是否改以「📷 拍照方式」完成「${name}」的成員註冊？`)) {
-          await registerMemberWithPhoto();
-        } else if (statusMsg) {
-          statusMsg.textContent = '💡 提示：請將臉部對準畫面中央，或點擊「📷 拍照註冊」。';
+        if (statusMsg) {
+          statusMsg.textContent = `💡 提示：畫面中未能捕捉到臉部特徵，請對準鏡頭後重試「註冊」。`;
         }
+        alert(`未捕捉到「${name}」的清晰人臉特徵。\n\n請保持光線明亮，並正對鏡頭後再次點擊「註冊」。`);
         return;
       }
 
@@ -647,40 +646,8 @@
 
     } catch (err) {
       console.error('AI reg error:', err);
-      await registerMemberWithPhoto();
+      alert('註冊失敗，請確認相機運作正常。');
     }
-  }
-
-  async function registerMemberWithPhoto() {
-    const nameInput = $('reg-name-input');
-    const name = nameInput ? nameInput.value.trim() : '';
-
-    if (!name) {
-      alert('請先輸入團員姓名');
-      if (nameInput) nameInput.focus();
-      return;
-    }
-
-    const video = $('main-video');
-    const photoDataUrl = captureSnapshot(video);
-    const statusMsg = $('reg-status-msg');
-
-    const newMember = {
-      id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      name: name,
-      descriptors: [],
-      photoDataUrl: photoDataUrl,
-      createdAt: new Date().toISOString()
-    };
-
-    await addOrUpdateMemberDB(newMember);
-    selectedMemberIds.add(newMember.id);
-    playChimeSound();
-
-    if (nameInput) nameInput.value = '';
-    if (statusMsg) statusMsg.textContent = `✓ 團員「${name}」拍照註冊成功！`;
-
-    await refreshData();
   }
 
   function captureSnapshot(video) {
@@ -814,7 +781,6 @@
     const btnRefreshCam = $('btn-refresh-camera');
     const btnTestAi = $('btn-test-ai-match');
     const btnAiReg = $('btn-ai-register');
-    const btnPhotoReg = $('btn-photo-register');
     const thresholdSlider = $('threshold-slider');
 
     if (btnOpenCam) {
@@ -840,7 +806,6 @@
 
     if (btnTestAi) btnTestAi.addEventListener('click', testAiMatchDiagnostic);
     if (btnAiReg) btnAiReg.addEventListener('click', registerMemberWithAi);
-    if (btnPhotoReg) btnPhotoReg.addEventListener('click', registerMemberWithPhoto);
 
     if (thresholdSlider) {
       thresholdSlider.addEventListener('input', (e) => {
