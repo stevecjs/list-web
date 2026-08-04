@@ -1,6 +1,6 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Dual Camera Zoom Engine (Hardware Optical + Digital CSS Scale 1.0x ~ 4.0x)
+ * Features Default Rear Camera ('environment') & 2-Row Responsive Zoom Control Toolbar
  * list.daliuren.cc
  */
 
@@ -223,7 +223,7 @@
   let filterMode = 'ALL';
 
   let activeStream = null;
-  let currentFacingMode = 'user';
+  let currentFacingMode = 'environment'; // Default to Rear Camera!
   let isAiModelLoaded = false;
   let faceMatcher = null;
   let scanIntervalId = null;
@@ -269,7 +269,7 @@
       }
     }
 
-    // 2. Apply Digital Scale Transform on Video Element
+    // 2. Apply Digital Scale Transform on Video Element & Face Overlay Canvas
     const video = $('main-video');
     const canvas = $('face-canvas');
     const transformStr = `scale(${currentZoom})`;
@@ -471,7 +471,7 @@
   }
 
   // --- 7. CAMERA & REAL-TIME AI SCANNER ---
-  async function startCamera(facingMode = 'user') {
+  async function startCamera(facingMode = currentFacingMode) {
     try {
       stopCamera();
       const constraints = { video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 480 } } };
