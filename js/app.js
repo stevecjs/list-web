@@ -1,6 +1,6 @@
 /**
  * app.js - Main Application Logic
- * Offline Face Recognition Attendance System with Dual Registration Fallback
+ * Offline Face Recognition Attendance System with Dynamic Purpose Checklist & One-Click Clear
  * list.daliuren.cc
  */
 
@@ -8,12 +8,12 @@ import {
   initDB,
   getAllMembers,
   addOrAppendMember,
-  updateMemberGroup,
   deleteMember,
   getAttendanceByDate,
   getAllAttendance,
   markAttendance,
   toggleManualAttendance,
+  clearTodayAttendance,
   clearAllData
 } from './db.js';
 
@@ -22,7 +22,7 @@ import { initAudio, playBeepSound, playErrorSound } from './sound.js';
 // Configuration & State
 const CONFIG = {
   MODEL_URL: './models',
-  FACE_DISTANCE_THRESHOLD: 0.52,
+  FACE_DISTANCE_THRESHOLD: 0.60, // Standard threshold for TinyFaceDetector (0.60 is optimal)
   COOLDOWN_MS: 1500,
   DETECTION_INTERVAL_MS: 100
 };
@@ -45,8 +45,9 @@ let scanIntervalId = null;
 let regIntervalId = null;
 let cooldownMap = new Map();
 
-let activeBoardGroup = 'ALL';
-let activeLogGroup = 'ALL';
+// Dynamic purpose selection state
+let selectedMemberIds = new Set(); // Set of member IDs selected for current session
+let activeFilterMode = 'ALL';      // 'ALL' or 'SELECTED'
 
 // DOM Elements
 const elements = {
@@ -70,12 +71,29 @@ const elements = {
   bannerTime: document.getElementById('banner-time'),
   presentCount: document.getElementById('present-count'),
   totalCount: document.getElementById('total-count'),
-  boardGroupFilter: document.getElementById('board-group-filter'),
   boardMemberList: document.getElementById('board-member-list'),
+  clearBoardBtn: document.getElementById('btn-clear-board'),
+  filterAllBtn: document.getElementById('btn-filter-all'),
+  filterSelectedOnlyBtn: document.getElementById('btn-filter-selected-only'),
+  selectedTargetCount: document.getElementById('selected-target-count'),
+  openTargetSelectorBtn: document.getElementById('btn-open-target-selector'),
+
+  // Debug Stats
+  dbgMemberCount: document.getElementById('dbg-member-count'),
+  dbgVectorCount: document.getElementById('dbg-vector-count'),
+  dbgThreshold: document.getElementById('dbg-threshold'),
+
+  // Modal
+  targetModal: document.getElementById('target-selector-modal'),
+  closeModalBtn: document.getElementById('btn-close-modal'),
+  selectAllBtn: document.getElementById('btn-select-all'),
+  deselectAllBtn: document.getElementById('btn-deselect-all'),
+  modalCheckedCount: document.getElementById('modal-checked-count'),
+  modalMemberChecklist: document.getElementById('modal-member-checklist'),
+  saveTargetSelectionBtn: document.getElementById('btn-save-target-selection'),
 
   // Register View
   regNameInput: document.getElementById('reg-name-input'),
-  regGroupSelect: document.getElementById('reg-group-select'),
   regVideo: document.getElementById('reg-video'),
   regCanvas: document.getElementById('reg-canvas'),
   startRegCameraBtn: document.getElementById('btn-start-reg-camera'),
@@ -89,7 +107,6 @@ const elements = {
 
   // Logs View
   logDateInput: document.getElementById('log-date-input'),
-  logGroupFilter: document.getElementById('log-group-filter'),
   copyClipboardBtn: document.getElementById('btn-copy-clipboard'),
   logPreviewText: document.getElementById('log-preview-text'),
 
@@ -130,7 +147,7 @@ async function loadFaceModels() {
 
   try {
     if (typeof faceapi === 'undefined') {
-      throw new Error('face-api.js JS Script 尚未完全下載');
+      throw new Error('face-api.js Script 尚未載入');
     }
 
     await Promise.all([
@@ -140,11 +157,11 @@ async function loadFaceModels() {
     ]);
 
     isModelLoaded = true;
-    updateStatus('離線 AI 人臉引擎就緒', 'green');
+    updateStatus('離線 AI 人臉辨識引擎就緒', 'green');
     if (elements.diagModelStatus) elements.diagModelStatus.textContent = '✓ tinyFaceDetector 離線成功';
   } catch (err) {
     console.warn('Face models load warning:', err);
-    updateStatus('離線 AI 人臉引擎準備中 (拍照模式就緒)', 'yellow');
+    updateStatus('離線 AI 辨識引擎準備中 (拍照模式就緒)', 'yellow');
     if (elements.diagModelStatus) elements.diagModelStatus.textContent = '⚠️ 離線 AI 模型準備中 (已開啟相片註冊與手動點名)';
   }
 }
@@ -203,10 +220,8 @@ async function switchTab(tabName) {
   if (tabName === 'scan') {
     await refreshTodayAttendance();
   } else if (tabName === 'register') {
-    updateGroupDropdownOptions();
     renderRegisteredMemberList();
   } else if (tabName === 'logs') {
-    updateLogGroupDropdown();
     renderLogsPreview();
   }
 }
@@ -264,113 +279,89 @@ function stopAllCameras() {
   if (elements.regVideo) elements.regVideo.srcObject = null;
 }
 
-// Refresh Members & Build FaceMatcher with MULTI-DESCRIPTORS
+// Refresh Members & Build FaceMatcher with RELIABLE DESCRIPTORS
 async function refreshMembersAndMatcher() {
   registeredMembers = await getAllMembers();
   if (registeredMembers.length === 0) {
     faceMatcher = null;
+    if (elements.dbgMemberCount) elements.dbgMemberCount.textContent = '0';
+    if (elements.dbgVectorCount) elements.dbgVectorCount.textContent = '0';
     return;
   }
 
+  let totalVectors = 0;
   const labeledDescriptors = [];
+
   registeredMembers.forEach(m => {
-    const validDescriptors = (m.descriptors && m.descriptors.length > 0)
-      ? m.descriptors.filter(d => Array.isArray(d) && d.length === 128 && d.some(val => val !== 0))
-      : (m.descriptor && m.descriptor.length === 128 && m.descriptor.some(val => val !== 0) ? [m.descriptor] : []);
+    const validDescriptors = [];
+
+    if (m.descriptors && Array.isArray(m.descriptors) && m.descriptors.length > 0) {
+      m.descriptors.forEach(d => {
+        if (Array.isArray(d) && d.length === 128 && d.some(val => val !== 0)) {
+          validDescriptors.push(new Float32Array(d));
+        }
+      });
+    }
 
     if (validDescriptors.length > 0) {
-      labeledDescriptors.push(
-        new faceapi.LabeledFaceDescriptors(m.id, validDescriptors.map(d => new Float32Array(d)))
-      );
+      labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(m.id, validDescriptors));
+      totalVectors += validDescriptors.length;
     }
   });
+
+  if (elements.dbgMemberCount) elements.dbgMemberCount.textContent = registeredMembers.length;
+  if (elements.dbgVectorCount) elements.dbgVectorCount.textContent = totalVectors;
+  if (elements.dbgThreshold) elements.dbgThreshold.textContent = CONFIG.FACE_DISTANCE_THRESHOLD.toFixed(2);
 
   if (labeledDescriptors.length > 0) {
     faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, CONFIG.FACE_DISTANCE_THRESHOLD);
   } else {
     faceMatcher = null;
   }
+
+  // Initialize selectedMemberIds if empty
+  if (selectedMemberIds.size === 0) {
+    registeredMembers.forEach(m => selectedMemberIds.add(m.id));
+  }
+  if (elements.selectedTargetCount) elements.selectedTargetCount.textContent = selectedMemberIds.size;
 }
 
 // Refresh Attendance & Update Board UI
 async function refreshTodayAttendance() {
   const today = getTodayDateStr();
   todayAttendance = await getAttendanceByDate(today);
-
-  renderGroupFilterPills();
   renderBoardMemberList();
 }
 
-function getUniqueGroups() {
-  const groupsSet = new Set(registeredMembers.map(m => m.group || '第 1 組'));
-  if (groupsSet.size === 0) groupsSet.add('第 1 組');
-  return Array.from(groupsSet).sort();
-}
-
-function renderGroupFilterPills() {
-  const container = elements.boardGroupFilter;
-  if (!container) return;
-
-  const groups = getUniqueGroups();
-
-  let html = `
-    <button data-group="ALL" class="board-group-pill px-3 py-1 rounded-full whitespace-nowrap transition-all ${
-      activeBoardGroup === 'ALL' ? 'bg-sky-500 text-white font-semibold shadow-sm' : 'bg-slate-800 text-slate-300 hover:text-white'
-    }">
-      全體團員 (${registeredMembers.length})
-    </button>
-  `;
-
-  groups.forEach(g => {
-    const count = registeredMembers.filter(m => (m.group || '第 1 組') === g).length;
-    html += `
-      <button data-group="${g}" class="board-group-pill px-3 py-1 rounded-full whitespace-nowrap transition-all ${
-        activeBoardGroup === g ? 'bg-sky-500 text-white font-semibold shadow-sm' : 'bg-slate-800 text-slate-300 hover:text-white'
-      }">
-        ${g} (${count})
-      </button>
-    `;
-  });
-
-  container.innerHTML = html;
-
-  container.querySelectorAll('.board-group-pill').forEach(pill => {
-    pill.addEventListener('click', () => {
-      activeBoardGroup = pill.dataset.group;
-      renderGroupFilterPills();
-      renderBoardMemberList();
-    });
-  });
-}
-
+// Render Attendance Status Board
 function renderBoardMemberList() {
   const container = elements.boardMemberList;
   if (!container) return;
 
-  const filteredMembers = activeBoardGroup === 'ALL'
-    ? registeredMembers
-    : registeredMembers.filter(m => (m.group || '第 1 組') === activeBoardGroup);
+  const targetMembers = activeFilterMode === 'SELECTED'
+    ? registeredMembers.filter(m => selectedMemberIds.has(m.id))
+    : registeredMembers;
 
   const attendedSet = new Map();
   todayAttendance.forEach(a => attendedSet.set(a.memberId, a));
 
-  const presentCountInGroup = filteredMembers.filter(m => attendedSet.has(m.id)).length;
-  elements.presentCount.textContent = presentCountInGroup;
-  elements.totalCount.textContent = filteredMembers.length;
+  const presentCount = targetMembers.filter(m => attendedSet.has(m.id)).length;
+  elements.presentCount.textContent = presentCount;
+  elements.totalCount.textContent = targetMembers.length;
 
-  if (filteredMembers.length === 0) {
+  if (targetMembers.length === 0) {
     container.innerHTML = `
       <div class="col-span-full py-8 text-center text-slate-400 text-sm">
-        此分組無成員，請先至「團員與特徵」頁面新增團員。
+        此點名範圍尚無成員，請點擊「🎯 挑選點名對象」或新增團員。
       </div>
     `;
     return;
   }
 
-  container.innerHTML = filteredMembers.map(member => {
+  container.innerHTML = targetMembers.map(member => {
     const isPresent = attendedSet.has(member.id);
     const attRecord = attendedSet.get(member.id);
-    const featureCount = (member.descriptors && member.descriptors.length) || 1;
+    const featureCount = (member.descriptors && member.descriptors.length) || (member.descriptor ? 1 : 0);
 
     return `
       <div 
@@ -386,8 +377,7 @@ function renderBoardMemberList() {
           <div>
             <div class="font-bold text-white flex items-center gap-1.5">
               ${member.name}
-              <span class="text-[10px] px-1.5 py-0.2 bg-slate-700 text-sky-300 rounded font-normal">${member.group || '第 1 組'}</span>
-              <span class="text-[10px] text-slate-400">(${featureCount}筆特徵)</span>
+              <span class="text-[10px] text-sky-400">(${featureCount > 0 ? featureCount + '筆特徵' : '照片註冊'})</span>
             </div>
             <div class="text-xs font-semibold ${isPresent ? 'text-emerald-400' : 'text-slate-400'}">
               ${isPresent ? `已到 ‧ ${attRecord.timeStr} (${attRecord.type === 'manual' ? '手動' : '人臉'})` : '未到'}
@@ -409,7 +399,7 @@ function renderBoardMemberList() {
       const member = registeredMembers.find(m => m.id === id);
       if (member) {
         initAudio();
-        await toggleManualAttendance(member.id, member.name, member.group || '第 1 組', getTodayDateStr());
+        await toggleManualAttendance(member.id, member.name, getTodayDateStr());
         playBeepSound();
         await refreshTodayAttendance();
       }
@@ -417,7 +407,7 @@ function renderBoardMemberList() {
   });
 }
 
-// REAL-TIME FACE ATTENDANCE SCANNING
+// REAL-TIME FACE ATTENDANCE SCANNING WITH DEBUG DISTANCE DISPLAY
 async function startAttendanceScan() {
   initAudio();
 
@@ -442,7 +432,7 @@ async function startAttendanceScan() {
     if (!isModelLoaded || !faceMatcher) return;
 
     try {
-      const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.45 });
+      const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.35 });
       const detections = await faceapi.detectAllFaces(video, options)
         .withFaceLandmarks(true)
         .withFaceDescriptors();
@@ -457,19 +447,20 @@ async function startAttendanceScan() {
       for (const detection of resizedDetections) {
         const box = detection.detection.box;
         
-        let label = '未登記成員';
+        const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+        let label = '未知臉孔';
         let isMatched = false;
         let matchedMember = null;
+        const distStr = bestMatch.distance.toFixed(2);
 
-        if (faceMatcher && registeredMembers.length > 0) {
-          const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-          if (bestMatch.label !== 'unknown') {
-            matchedMember = registeredMembers.find(m => m.id === bestMatch.label);
-            if (matchedMember) {
-              label = `${matchedMember.name} [${matchedMember.group || '第 1 組'}]`;
-              isMatched = true;
-            }
+        if (bestMatch.label !== 'unknown') {
+          matchedMember = registeredMembers.find(m => m.id === bestMatch.label);
+          if (matchedMember) {
+            label = `${matchedMember.name} (${distStr})`;
+            isMatched = true;
           }
+        } else {
+          label = `未知 (近: ${distStr})`;
         }
 
         ctx.lineWidth = 3;
@@ -477,7 +468,7 @@ async function startAttendanceScan() {
         ctx.strokeRect(box.x, box.y, box.width, box.height);
 
         ctx.fillStyle = isMatched ? 'rgba(16, 185, 129, 0.95)' : 'rgba(244, 63, 94, 0.95)';
-        ctx.fillRect(box.x, box.y - 28, Math.max(120, box.width), 28);
+        ctx.fillRect(box.x, box.y - 28, Math.max(140, box.width), 28);
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 14px sans-serif';
         ctx.fillText(label, box.x + 8, box.y - 8);
@@ -492,7 +483,6 @@ async function startAttendanceScan() {
             const result = await markAttendance(
               matchedMember.id, 
               matchedMember.name, 
-              matchedMember.group || '第 1 組', 
               getTodayDateStr(), 
               'face'
             );
@@ -522,23 +512,6 @@ function showSuccessBanner(name, timeStr) {
 }
 
 // MEMBER REGISTRATION MODULE WITH DUAL FALLBACK
-function updateGroupDropdownOptions() {
-  const select = elements.regGroupSelect;
-  if (!select) return;
-
-  const existingGroups = getUniqueGroups();
-  const defaultGroups = ['第 1 組', '第 2 組', '第 3 組', '第 4 組', '第 5 組', 'VIP組'];
-  const allGroups = Array.from(new Set([...defaultGroups, ...existingGroups])).sort();
-
-  const currentValue = select.value;
-  select.innerHTML = allGroups.map(g => `<option value="${g}">${g}</option>`).join('') +
-    `<option value="+ 自訂新分組">+ 自訂新分組...</option>`;
-
-  if (allGroups.includes(currentValue)) {
-    select.value = currentValue;
-  }
-}
-
 async function startRegistrationCamera() {
   initAudio();
   regStream = await startCamera(elements.regVideo, regFacingMode);
@@ -608,21 +581,13 @@ function resetRegistrationForm() {
   elements.regActionButtons.classList.add('hidden');
 }
 
-// 1. AI Face Capture Registration
 async function captureAndRegisterFace() {
   const name = elements.regNameInput.value.trim();
-  let group = elements.regGroupSelect.value;
 
   if (!name) {
     alert('請先輸入團員姓名');
     elements.regNameInput.focus();
     return;
-  }
-
-  if (group === '+ 自訂新分組') {
-    const customGroup = prompt('請輸入自訂分組名稱:');
-    if (!customGroup || !customGroup.trim()) return;
-    group = customGroup.trim();
   }
 
   const video = elements.regVideo;
@@ -648,7 +613,6 @@ async function captureAndRegisterFace() {
     }
 
     if (!detection) {
-      // AI extraction failed -> Offer smooth direct photo fallback
       if (confirm(`🤖 AI 未能辨識出精確特徵。\n\n是否直接以「📷 拍照方式」完成「${name}」的成員註冊？(可正常顯示於看板並點名紀錄)`)) {
         await capturePhotoDirectRegister();
       } else {
@@ -659,12 +623,10 @@ async function captureAndRegisterFace() {
       return;
     }
 
-    // Capture static thumbnail photo
     const photoDataUrl = captureVideoSnapshot(video);
 
     const result = await addOrAppendMember({
       name: name,
-      group: group,
       descriptor: Array.from(detection.descriptor),
       photoDataUrl: photoDataUrl
     });
@@ -672,28 +634,25 @@ async function captureAndRegisterFace() {
     playBeepSound();
 
     if (result.isNew) {
-      elements.regStatusMsg.textContent = `🎉 團員「${name}」(${group}) 註冊成功！可再微轉角度追加特徵！`;
+      elements.regStatusMsg.textContent = `🎉 團員「${name}」註冊成功！可再微轉角度追加特徵！`;
     } else {
       elements.regStatusMsg.textContent = `✓ 已為「${name}」成功追加第 ${result.count} 筆特徵碼！`;
     }
     elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px]';
 
     await refreshMembersAndMatcher();
-    updateGroupDropdownOptions();
     renderRegisteredMemberList();
 
   } catch (err) {
     console.error('Face capture error:', err);
-    await capturePhotoDirectRegister(); // Fallback on any unexpected error
+    await capturePhotoDirectRegister();
   } finally {
     elements.captureFaceBtn.disabled = false;
   }
 }
 
-// 2. Direct Photo Capture Fallback (Never Fails)
 async function capturePhotoDirectRegister() {
   const name = elements.regNameInput.value.trim();
-  let group = elements.regGroupSelect.value;
 
   if (!name) {
     alert('請先輸入團員姓名');
@@ -701,32 +660,22 @@ async function capturePhotoDirectRegister() {
     return;
   }
 
-  if (group === '+ 自訂新分組') {
-    const customGroup = prompt('請輸入自訂分組名稱:');
-    if (!customGroup || !customGroup.trim()) return;
-    group = customGroup.trim();
-  }
-
   const video = elements.regVideo;
   const photoDataUrl = captureVideoSnapshot(video);
-
-  // Generate zero array dummy descriptor for manual photo profile
   const dummyDescriptor = new Array(128).fill(0);
 
   const result = await addOrAppendMember({
     name: name,
-    group: group,
     descriptor: dummyDescriptor,
     photoDataUrl: photoDataUrl
   });
 
   playBeepSound();
 
-  elements.regStatusMsg.textContent = `✓ 已完成「${name}」(${group}) 拍照註冊！(可正常於看板點名)`;
+  elements.regStatusMsg.textContent = `✓ 已完成「${name}」拍照註冊！(可正常於看板點名)`;
   elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px]';
 
   await refreshMembersAndMatcher();
-  updateGroupDropdownOptions();
   renderRegisteredMemberList();
 }
 
@@ -744,7 +693,6 @@ function captureVideoSnapshot(video) {
   return canvas.toDataURL('image/jpeg', 0.85);
 }
 
-// Render Registered Member List
 function renderRegisteredMemberList() {
   const container = elements.registeredMemberList;
   if (!container) return;
@@ -755,7 +703,7 @@ function renderRegisteredMemberList() {
   }
 
   container.innerHTML = registeredMembers.map(m => {
-    const featCount = (m.descriptors && m.descriptors.length) || 1;
+    const featCount = (m.descriptors && m.descriptors.length) || (m.descriptor ? 1 : 0);
     return `
       <div class="glass-card p-3 rounded-xl flex items-center justify-between">
         <div class="flex items-center space-x-3">
@@ -765,12 +713,9 @@ function renderRegisteredMemberList() {
           <div>
             <div class="font-bold text-white flex items-center gap-1.5">
               ${m.name}
-              <span class="btn-change-group cursor-pointer text-[10px] px-2 py-0.5 bg-sky-500/20 text-sky-300 rounded border border-sky-500/30 hover:bg-sky-500/30" data-mem-id="${m.id}" data-mem-group="${m.group || '第 1 組'}">
-                ${m.group || '第 1 組'} ✏️
-              </span>
             </div>
             <div class="text-xs text-sky-400 font-medium flex items-center gap-1">
-              <span>📸 ${featCount} 筆特徵向量</span>
+              <span>📸 ${featCount > 0 ? featCount + ' 筆特徵向量' : '拍照註冊'}</span>
               <span class="text-slate-500">‧</span>
               <span class="text-slate-400">${new Date(m.createdAt).toLocaleDateString()}</span>
             </div>
@@ -779,7 +724,6 @@ function renderRegisteredMemberList() {
         <div class="flex items-center gap-1.5">
           <button 
             data-append-name="${m.name}"
-            data-append-group="${m.group || '第 1 組'}"
             class="btn-append-feature px-2.5 py-1 bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/40 rounded-lg text-xs font-semibold transition-colors flex items-center gap-0.5"
           >
             ＋追加特徵
@@ -798,11 +742,7 @@ function renderRegisteredMemberList() {
   container.querySelectorAll('.btn-append-feature').forEach(btn => {
     btn.addEventListener('click', async () => {
       const name = btn.dataset.appendName;
-      const group = btn.dataset.appendGroup;
-
       elements.regNameInput.value = name;
-      elements.regGroupSelect.value = group;
-
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
       if (!isRegistering) {
@@ -814,66 +754,75 @@ function renderRegisteredMemberList() {
     });
   });
 
-  container.querySelectorAll('.btn-change-group').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.memId;
-      const currentG = btn.dataset.memGroup;
-      const newGroup = prompt(`請輸入的新分組名稱:`, currentG);
-      if (newGroup && newGroup.trim()) {
-        await updateMemberGroup(id, newGroup.trim());
-        await refreshMembersAndMatcher();
-        await refreshTodayAttendance();
-        updateGroupDropdownOptions();
-        renderRegisteredMemberList();
-      }
-    });
-  });
-
   container.querySelectorAll('.btn-del-member').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = btn.dataset.delId;
       if (confirm('確定要刪除此團員資料？')) {
         await deleteMember(id);
+        selectedMemberIds.delete(id);
         await refreshMembersAndMatcher();
         await refreshTodayAttendance();
-        updateGroupDropdownOptions();
         renderRegisteredMemberList();
       }
     });
   });
 }
 
-// LOGS & CLIPBOARD COPY MODULE
-function updateLogGroupDropdown() {
-  const select = elements.logGroupFilter;
-  if (!select) return;
+// TARGET SELECTOR MODAL DRAWER
+function renderTargetSelectorModal() {
+  const container = elements.modalMemberChecklist;
+  if (!container) return;
 
-  const groups = getUniqueGroups();
-  select.innerHTML = `<option value="ALL">全體團員</option>` +
-    groups.map(g => `<option value="${g}">${g}</option>`).join('');
+  if (registeredMembers.length === 0) {
+    container.innerHTML = `<div class="text-center py-4 text-slate-400 text-xs">尚無已註冊團員</div>`;
+    return;
+  }
 
-  select.value = activeLogGroup;
+  container.innerHTML = registeredMembers.map(m => {
+    const isChecked = selectedMemberIds.has(m.id);
+    return `
+      <label class="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 cursor-pointer border border-slate-700/50">
+        <div class="flex items-center space-x-2.5">
+          <input type="checkbox" data-id="${m.id}" class="chk-target-member w-4 h-4 accent-sky-500 rounded" ${isChecked ? 'checked' : ''} />
+          <span class="text-xs font-bold text-white">${m.name}</span>
+        </div>
+      </label>
+    `;
+  }).join('');
+
+  updateModalCheckedCount();
+
+  container.querySelectorAll('.chk-target-member').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const id = chk.dataset.id;
+      if (chk.checked) {
+        selectedMemberIds.add(id);
+      } else {
+        selectedMemberIds.delete(id);
+      }
+      updateModalCheckedCount();
+    });
+  });
 }
 
+function updateModalCheckedCount() {
+  if (elements.modalCheckedCount) {
+    elements.modalCheckedCount.textContent = selectedMemberIds.size;
+  }
+}
+
+// LOGS & CLIPBOARD COPY MODULE
 async function renderLogsPreview() {
   const dateStr = elements.logDateInput.value || getTodayDateStr();
-  const groupFilter = elements.logGroupFilter.value || 'ALL';
-  activeLogGroup = groupFilter;
-
   const logs = await getAttendanceByDate(dateStr);
   const attendedMap = new Map();
   logs.forEach(l => attendedMap.set(l.memberId, l));
 
-  const targetMembers = groupFilter === 'ALL'
-    ? registeredMembers
-    : registeredMembers.filter(m => (m.group || '第 1 組') === groupFilter);
-
   const presentList = [];
   const absentList = [];
 
-  targetMembers.forEach(m => {
+  registeredMembers.forEach(m => {
     if (attendedMap.has(m.id)) {
       presentList.push({ member: m, log: attendedMap.get(m.id) });
     } else {
@@ -882,29 +831,27 @@ async function renderLogsPreview() {
   });
 
   const now = new Date();
-  const groupTitle = groupFilter === 'ALL' ? '全體團員' : groupFilter;
 
   let text = `📋 【點名紀錄 - list.daliuren.cc】\n`;
   text += `📅 點名日期：${dateStr}\n`;
-  text += `🏷️ 所屬分組：${groupTitle}\n`;
   text += `----------------------------------------\n`;
-  text += `✅ 已出席 (${presentList.length}/${targetMembers.length} 人):\n`;
+  text += `✅ 已出席 (${presentList.length}/${registeredMembers.length} 人):\n`;
 
   if (presentList.length === 0) {
     text += `  (尚無出席紀錄)\n`;
   } else {
     presentList.forEach((item, index) => {
       const typeStr = item.log.type === 'manual' ? '手動' : '人臉辨識';
-      text += `  ${index + 1}. ${item.member.name} [${item.member.group || '第 1 組'}] - ${item.log.timeStr} (${typeStr})\n`;
+      text += `  ${index + 1}. ${item.member.name} - ${item.log.timeStr} (${typeStr})\n`;
     });
   }
 
-  text += `\n❌ 未出席 (${absentList.length}/${targetMembers.length} 人):\n`;
+  text += `\n❌ 未出席 (${absentList.length}/${registeredMembers.length} 人):\n`;
   if (absentList.length === 0) {
     text += `  (全員皆已出席 🎉)\n`;
   } else {
     absentList.forEach((m, index) => {
-      text += `  ${index + 1}. ${m.name} [${m.group || '第 1 組'}]\n`;
+      text += `  ${index + 1}. ${m.name}\n`;
     });
   }
 
@@ -945,6 +892,56 @@ function setupEventListeners() {
     await startAttendanceScan();
   });
 
+  // One-click Clear Attendance Board Button
+  elements.clearBoardBtn.addEventListener('click', async () => {
+    if (confirm('🧹 確定要一鍵清空今日/本次點名看板嗎？\n所有團員將恢復為「未出席」狀態。')) {
+      await clearTodayAttendance(getTodayDateStr());
+      playBeepSound();
+      await refreshTodayAttendance();
+    }
+  });
+
+  // Dynamic filter buttons
+  elements.filterAllBtn.addEventListener('click', () => {
+    activeFilterMode = 'ALL';
+    elements.filterAllBtn.className = 'px-2.5 py-1 rounded-lg bg-sky-500 text-white font-bold';
+    elements.filterSelectedOnlyBtn.className = 'px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-medium hover:text-white';
+    renderBoardMemberList();
+  });
+
+  elements.filterSelectedOnlyBtn.addEventListener('click', () => {
+    activeFilterMode = 'SELECTED';
+    elements.filterSelectedOnlyBtn.className = 'px-2.5 py-1 rounded-lg bg-sky-500 text-white font-bold';
+    elements.filterAllBtn.className = 'px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-medium hover:text-white';
+    renderBoardMemberList();
+  });
+
+  // Modal open / close
+  elements.openTargetSelectorBtn.addEventListener('click', () => {
+    renderTargetSelectorModal();
+    elements.targetModal.classList.remove('hidden');
+  });
+
+  elements.closeModalBtn.addEventListener('click', () => {
+    elements.targetModal.classList.add('hidden');
+  });
+
+  elements.selectAllBtn.addEventListener('click', () => {
+    registeredMembers.forEach(m => selectedMemberIds.add(m.id));
+    renderTargetSelectorModal();
+  });
+
+  elements.deselectAllBtn.addEventListener('click', () => {
+    selectedMemberIds.clear();
+    renderTargetSelectorModal();
+  });
+
+  elements.saveTargetSelectionBtn.addEventListener('click', () => {
+    elements.targetModal.classList.add('hidden');
+    if (elements.selectedTargetCount) elements.selectedTargetCount.textContent = selectedMemberIds.size;
+    renderBoardMemberList();
+  });
+
   // Register tab buttons
   elements.startRegCameraBtn.addEventListener('click', startRegistrationCamera);
   elements.switchRegCameraBtn.addEventListener('click', async () => {
@@ -955,29 +952,15 @@ function setupEventListeners() {
   elements.capturePhotoDirectBtn.addEventListener('click', capturePhotoDirectRegister);
   elements.resetRegFormBtn.addEventListener('click', resetRegistrationForm);
 
-  elements.regGroupSelect.addEventListener('change', (e) => {
-    if (e.target.value === '+ 自訂新分組') {
-      const custom = prompt('請輸入自訂分組名稱:');
-      if (custom && custom.trim()) {
-        const select = elements.regGroupSelect;
-        const option = document.createElement('option');
-        option.value = custom.trim();
-        option.textContent = custom.trim();
-        select.insertBefore(option, select.lastElementChild);
-        select.value = custom.trim();
-      }
-    }
-  });
-
   // Logs tab
   elements.logDateInput.addEventListener('change', renderLogsPreview);
-  elements.logGroupFilter.addEventListener('change', renderLogsPreview);
   elements.copyClipboardBtn.addEventListener('click', copyLogsToClipboard);
 
   // Settings
   elements.clearDataBtn.addEventListener('click', async () => {
     if (confirm('⚠️ 警告：這將會清除 IndexedDB 內所有成員與點名紀錄！確定要清除嗎？')) {
       await clearAllData();
+      selectedMemberIds.clear();
       await refreshMembersAndMatcher();
       await refreshTodayAttendance();
       alert('所有資料已成功清除！');
@@ -987,7 +970,8 @@ function setupEventListeners() {
 
   elements.thresholdInput.addEventListener('input', (e) => {
     CONFIG.FACE_DISTANCE_THRESHOLD = parseFloat(e.target.value);
-    elements.thresholdValue.textContent = CONFIG.FACE_DISTANCE_THRESHOLD;
+    elements.thresholdValue.textContent = CONFIG.FACE_DISTANCE_THRESHOLD.toFixed(2);
+    if (elements.dbgThreshold) elements.dbgThreshold.textContent = CONFIG.FACE_DISTANCE_THRESHOLD.toFixed(2);
     if (faceMatcher) {
       faceMatcher.distanceThreshold = CONFIG.FACE_DISTANCE_THRESHOLD;
     }

@@ -1,10 +1,10 @@
 /**
  * db.js - IndexedDB storage engine for member profiles & attendance records
- * Supports Multi-descriptor (同人多特徵碼採集) for maximum recognition accuracy.
+ * Supports Multi-descriptor vector matching and attendance session resetting.
  */
 
 const DB_NAME = 'ListAttendanceDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbInstance = null;
 
@@ -20,7 +20,6 @@ export function initDB() {
       if (!db.objectStoreNames.contains('members')) {
         const memberStore = db.createObjectStore('members', { keyPath: 'id' });
         memberStore.createIndex('name', 'name', { unique: false });
-        memberStore.createIndex('group', 'group', { unique: false });
         memberStore.createIndex('createdAt', 'createdAt', { unique: false });
       }
 
@@ -28,7 +27,6 @@ export function initDB() {
         const attendanceStore = db.createObjectStore('attendance', { keyPath: 'id' });
         attendanceStore.createIndex('memberId', 'memberId', { unique: false });
         attendanceStore.createIndex('dateStr', 'dateStr', { unique: false });
-        attendanceStore.createIndex('group', 'group', { unique: false });
         attendanceStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
     };
@@ -45,7 +43,7 @@ export function initDB() {
   });
 }
 
-// MEMBER OPERATIONS WITH MULTI-DESCRIPTOR SUPPORT
+// MEMBER OPERATIONS
 export async function getAllMembers() {
   const db = await initDB();
   return new Promise((resolve, reject) => {
@@ -54,9 +52,8 @@ export async function getAllMembers() {
     const request = store.getAll();
     request.onsuccess = () => {
       const members = request.result || [];
-      // Normalize descriptor data for multi-feature support
       members.forEach(m => {
-        if (!m.group) m.group = '第 1 組';
+        // Ensure descriptors is an array of Float32Array / Array
         if (!m.descriptors || !Array.isArray(m.descriptors) || m.descriptors.length === 0) {
           m.descriptors = m.descriptor ? [Array.from(m.descriptor)] : [];
         }
@@ -67,66 +64,43 @@ export async function getAllMembers() {
   });
 }
 
-/**
- * Add or append feature descriptor to existing member or new member
- */
-export async function addOrAppendMember({ name, group, descriptor, photoDataUrl }) {
+export async function addOrAppendMember({ name, descriptor, photoDataUrl }) {
   const db = await initDB();
   const members = await getAllMembers();
   const trimmedName = name.trim();
-  const trimmedGroup = (group || '第 1 組').trim();
-  const descriptorArray = Array.from(descriptor);
 
-  // Check if member with exact name and group already exists
-  const existingMember = members.find(m => m.name === trimmedName && m.group === trimmedGroup);
+  // Find existing member by name
+  const existingMember = members.find(m => m.name.toLowerCase() === trimmedName.toLowerCase());
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction('members', 'readwrite');
     const store = tx.objectStore('members');
 
+    const descriptorArray = descriptor ? Array.from(descriptor) : [];
+
     if (existingMember) {
-      // Append descriptor to existing member
       if (!existingMember.descriptors) existingMember.descriptors = [];
-      existingMember.descriptors.push(descriptorArray);
-      if (photoDataUrl) existingMember.photoDataUrl = photoDataUrl; // update thumbnail
+      if (descriptorArray.length === 128) {
+        existingMember.descriptors.push(descriptorArray);
+      }
+      if (photoDataUrl) existingMember.photoDataUrl = photoDataUrl;
 
       const putReq = store.put(existingMember);
       putReq.onsuccess = () => resolve({ isNew: false, member: existingMember, count: existingMember.descriptors.length });
       putReq.onerror = () => reject(putReq.error);
     } else {
-      // Create new member with multi-descriptor array
       const newRecord = {
         id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
         name: trimmedName,
-        group: trimmedGroup,
-        descriptors: [descriptorArray],
+        descriptors: descriptorArray.length === 128 ? [descriptorArray] : [],
         photoDataUrl: photoDataUrl || '',
         createdAt: new Date().toISOString()
       };
 
       const addReq = store.put(newRecord);
-      addReq.onsuccess = () => resolve({ isNew: true, member: newRecord, count: 1 });
+      addReq.onsuccess = () => resolve({ isNew: true, member: newRecord, count: newRecord.descriptors.length });
       addReq.onerror = () => reject(addReq.error);
     }
-  });
-}
-
-export async function updateMemberGroup(memberId, newGroup) {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('members', 'readwrite');
-    const store = tx.objectStore('members');
-    const getReq = store.get(memberId);
-    
-    getReq.onsuccess = () => {
-      const member = getReq.result;
-      if (!member) return reject('Member not found');
-      member.group = newGroup.trim();
-      const putReq = store.put(member);
-      putReq.onsuccess = () => resolve(member);
-      putReq.onerror = () => reject(putReq.error);
-    };
-    getReq.onerror = () => reject(getReq.error);
   });
 }
 
@@ -154,18 +128,7 @@ export async function getAttendanceByDate(dateStr) {
   });
 }
 
-export async function getAllAttendance() {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('attendance', 'readonly');
-    const store = tx.objectStore('attendance');
-    const request = store.getAll();
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-export async function markAttendance(memberId, memberName, memberGroup, dateStr, type = 'face') {
+export async function markAttendance(memberId, memberName, dateStr, type = 'face') {
   const db = await initDB();
   const now = new Date();
   const currentDateStr = dateStr || now.toISOString().split('T')[0];
@@ -188,7 +151,6 @@ export async function markAttendance(memberId, memberName, memberGroup, dateStr,
         id: 'att_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
         memberId: memberId,
         memberName: memberName,
-        group: memberGroup || '第 1 組',
         dateStr: currentDateStr,
         timeStr: timeStr,
         timestamp: now.getTime(),
@@ -205,7 +167,7 @@ export async function markAttendance(memberId, memberName, memberGroup, dateStr,
   });
 }
 
-export async function toggleManualAttendance(memberId, memberName, memberGroup, dateStr) {
+export async function toggleManualAttendance(memberId, memberName, dateStr) {
   const db = await initDB();
   const now = new Date();
   const currentDateStr = dateStr || now.toISOString().split('T')[0];
@@ -230,7 +192,6 @@ export async function toggleManualAttendance(memberId, memberName, memberGroup, 
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
           memberId: memberId,
           memberName: memberName,
-          group: memberGroup || '第 1 組',
           dateStr: currentDateStr,
           timeStr: timeStr,
           timestamp: now.getTime(),
@@ -243,6 +204,26 @@ export async function toggleManualAttendance(memberId, memberName, memberGroup, 
       }
     };
     checkReq.onerror = () => reject(checkReq.error);
+  });
+}
+
+// Clear today's attendance logs (一鍵清空即時點名看板)
+export async function clearTodayAttendance(dateStr) {
+  const db = await initDB();
+  const currentDateStr = dateStr || new Date().toISOString().split('T')[0];
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('attendance', 'readwrite');
+    const store = tx.objectStore('attendance');
+    const index = store.index('dateStr');
+    const req = index.getAllKeys(currentDateStr);
+
+    req.onsuccess = () => {
+      const keys = req.result || [];
+      keys.forEach(k => store.delete(k));
+      tx.oncomplete = () => resolve(keys.length);
+    };
+    req.onerror = () => reject(req.error);
   });
 }
 
