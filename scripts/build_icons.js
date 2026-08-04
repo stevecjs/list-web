@@ -1,0 +1,32 @@
+const fs = require('fs');
+const path = require('path');
+
+const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="glyph" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)" />
+  <circle cx="256" cy="256" r="200" fill="none" stroke="rgba(56, 189, 248, 0.3)" stroke-width="8" />
+  <circle cx="256" cy="256" r="180" fill="none" stroke="rgba(56, 189, 248, 0.6)" stroke-width="3" stroke-dasharray="12, 12" />
+  <text x="256" y="275" dominant-baseline="middle" text-anchor="middle" fill="url(#glyph)" font-family="-apple-system, BlinkMacSystemFont, 'PingFang TC', 'SF Pro Display', 'Microsoft JhengHei', sans-serif" font-size="260" font-weight="900" filter="url(#glow)">點</text>
+</svg>`;
+
+const assetsDir = path.join(__dirname, '..', 'assets');
+if (!fs.existsSync(assetsDir)) {
+  fs.mkdirSync(assetsDir, { recursive: true });
+}
+
+fs.writeFileSync(path.join(assetsDir, 'icon.svg'), svgIcon);
+console.log('Icon SVG created successfully.');

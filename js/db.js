@@ -1,10 +1,10 @@
 /**
  * db.js - IndexedDB storage engine for member profiles & attendance records
- * Supports 100% offline persistence.
+ * Supports grouping (分組) and session-based attendance management.
  */
 
 const DB_NAME = 'ListAttendanceDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance = null;
 
@@ -21,7 +21,14 @@ export function initDB() {
       if (!db.objectStoreNames.contains('members')) {
         const memberStore = db.createObjectStore('members', { keyPath: 'id' });
         memberStore.createIndex('name', 'name', { unique: false });
+        memberStore.createIndex('group', 'group', { unique: false });
         memberStore.createIndex('createdAt', 'createdAt', { unique: false });
+      } else {
+        const tx = event.target.transaction;
+        const memberStore = tx.objectStore('members');
+        if (!memberStore.indexNames.contains('group')) {
+          memberStore.createIndex('group', 'group', { unique: false });
+        }
       }
 
       // Store for attendance logs
@@ -29,7 +36,14 @@ export function initDB() {
         const attendanceStore = db.createObjectStore('attendance', { keyPath: 'id' });
         attendanceStore.createIndex('memberId', 'memberId', { unique: false });
         attendanceStore.createIndex('dateStr', 'dateStr', { unique: false });
+        attendanceStore.createIndex('group', 'group', { unique: false });
         attendanceStore.createIndex('timestamp', 'timestamp', { unique: false });
+      } else {
+        const tx = event.target.transaction;
+        const attendanceStore = tx.objectStore('attendance');
+        if (!attendanceStore.indexNames.contains('group')) {
+          attendanceStore.createIndex('group', 'group', { unique: false });
+        }
       }
     };
 
@@ -52,7 +66,14 @@ export async function getAllMembers() {
     const tx = db.transaction('members', 'readonly');
     const store = tx.objectStore('members');
     const request = store.getAll();
-    request.onsuccess = () => resolve(request.result || []);
+    request.onsuccess = () => {
+      const members = request.result || [];
+      // Backward compatibility fallback for group
+      members.forEach(m => {
+        if (!m.group) m.group = '第 1 組';
+      });
+      resolve(members);
+    };
     request.onerror = () => reject(request.error);
   });
 }
@@ -63,11 +84,11 @@ export async function addMember(member) {
     const tx = db.transaction('members', 'readwrite');
     const store = tx.objectStore('members');
     
-    // Ensure array for descriptor serialization
     const record = {
       id: member.id || 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       name: member.name.trim(),
-      descriptor: Array.from(member.descriptor), // standard array for IndexedDB compatibility
+      group: (member.group || '第 1 組').trim(),
+      descriptor: Array.from(member.descriptor),
       photoDataUrl: member.photoDataUrl || '',
       createdAt: member.createdAt || new Date().toISOString()
     };
@@ -75,6 +96,25 @@ export async function addMember(member) {
     const request = store.put(record);
     request.onsuccess = () => resolve(record);
     request.onerror = () => reject(request.error);
+  });
+}
+
+export async function updateMemberGroup(memberId, newGroup) {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('members', 'readwrite');
+    const store = tx.objectStore('members');
+    const getReq = store.get(memberId);
+    
+    getReq.onsuccess = () => {
+      const member = getReq.result;
+      if (!member) return reject('Member not found');
+      member.group = newGroup.trim();
+      const putReq = store.put(member);
+      putReq.onsuccess = () => resolve(member);
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
   });
 }
 
@@ -113,7 +153,7 @@ export async function getAllAttendance() {
   });
 }
 
-export async function markAttendance(memberId, memberName, dateStr, type = 'face') {
+export async function markAttendance(memberId, memberName, memberGroup, dateStr, type = 'face') {
   const db = await initDB();
   const now = new Date();
   const currentDateStr = dateStr || now.toISOString().split('T')[0];
@@ -124,7 +164,6 @@ export async function markAttendance(memberId, memberName, dateStr, type = 'face
     const store = tx.objectStore('attendance');
     const index = store.index('dateStr');
     
-    // Check if already checked in today
     const checkReq = index.getAll(currentDateStr);
     checkReq.onsuccess = () => {
       const todayLogs = checkReq.result || [];
@@ -137,11 +176,12 @@ export async function markAttendance(memberId, memberName, dateStr, type = 'face
         id: 'att_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
         memberId: memberId,
         memberName: memberName,
+        group: memberGroup || '第 1 組',
         dateStr: currentDateStr,
         timeStr: timeStr,
         timestamp: now.getTime(),
         status: 'present',
-        type: type // 'face' or 'manual'
+        type: type
       };
 
       const addReq = store.add(newRecord);
@@ -153,7 +193,7 @@ export async function markAttendance(memberId, memberName, dateStr, type = 'face
   });
 }
 
-export async function toggleManualAttendance(memberId, memberName, dateStr) {
+export async function toggleManualAttendance(memberId, memberName, memberGroup, dateStr) {
   const db = await initDB();
   const now = new Date();
   const currentDateStr = dateStr || now.toISOString().split('T')[0];
@@ -170,16 +210,17 @@ export async function toggleManualAttendance(memberId, memberName, dateStr) {
       const existing = todayLogs.find(log => log.memberId === memberId);
 
       if (existing) {
-        // Toggle OFF (Remove attendance)
+        // Remove attendance
         const delReq = store.delete(existing.id);
         delReq.onsuccess = () => resolve({ action: 'removed', recordId: existing.id });
         delReq.onerror = () => reject(delReq.error);
       } else {
-        // Toggle ON (Add manual attendance)
+        // Add manual attendance
         const newRecord = {
           id: 'att_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
           memberId: memberId,
           memberName: memberName,
+          group: memberGroup || '第 1 組',
           dateStr: currentDateStr,
           timeStr: timeStr,
           timestamp: now.getTime(),

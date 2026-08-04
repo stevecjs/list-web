@@ -3,7 +3,7 @@
  * 100% Offline Cache-First Strategy for HTML, JS, CSS, and Local Model Binaries
  */
 
-const CACHE_NAME = 'list-face-attendance-v1';
+const CACHE_NAME = 'list-face-attendance-v2';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -22,6 +22,7 @@ const ASSETS_TO_CACHE = [
   './models/face_recognition_model-weights_manifest.json',
   './models/face_recognition_model-shard1',
   './models/face_recognition_model-shard2',
+  './assets/icon.svg',
   './assets/icon-192.png',
   './assets/icon-512.png'
 ];
@@ -58,7 +59,6 @@ self.addEventListener('activate', (event) => {
 
 // Fetch Event - Cache-First Strategy
 self.addEventListener('fetch', (event) => {
-  // Only intercept GET requests
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
@@ -70,7 +70,6 @@ self.addEventListener('fetch', (event) => {
         if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
           return networkResponse;
         }
-        // Dynamically cache new valid responses
         const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseToCache);
