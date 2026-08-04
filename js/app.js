@@ -1,6 +1,6 @@
 /**
  * app.js - Main Application Logic
- * Offline Face Recognition Attendance System with Real-Time Progress Bar & PWA Update Handler
+ * Offline Face Recognition Attendance System with Instant Boot
  * list.daliuren.cc
  */
 
@@ -168,20 +168,11 @@ function updateInitProgress(percent, statusText) {
   if (elements.statusDot) {
     elements.statusDot.className = `w-2.5 h-2.5 rounded-full ${percent < 100 ? 'bg-yellow-500' : 'bg-green-500'}`;
   }
-
-  if (percent >= 100 && elements.progressContainer) {
-    setTimeout(() => {
-      elements.progressContainer.style.opacity = '0';
-      setTimeout(() => elements.progressContainer.classList.add('hidden'), 500);
-    }, 2500);
-  }
 }
 
-// Initialize Application
-document.addEventListener('DOMContentLoaded', async () => {
+// Instant Boot Application
+function bootApp() {
   try {
-    updateInitProgress(10, '準備系統組件與頁面介面...');
-
     setupTabs();
     setupEventListeners();
     updateClock();
@@ -192,27 +183,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     registerServiceWorker();
 
-    updateInitProgress(25, '正在讀取 IndexedDB 團員名冊...');
+    updateInitProgress(100, '系統就緒');
 
-    try {
-      await refreshMembersAndMatcher();
-      await refreshTodayAttendance();
-    } catch (dbErr) {
-      console.warn('DB Load Warning:', dbErr);
-    }
-
-    updateInitProgress(40, '載入 AI 人臉偵測特徵模型...');
-
-    loadFaceModels().catch(err => {
-      console.warn('Model load background warning:', err);
-      updateInitProgress(100, '相片註冊與手動點名模式已就緒');
-    });
+    refreshMembersAndMatcher().catch(e => console.warn('Refresh members warning:', e));
+    refreshTodayAttendance().catch(e => console.warn('Refresh attendance warning:', e));
+    loadFaceModels().catch(e => console.warn('Model load warning:', e));
 
   } catch (err) {
-    console.error('App init error:', err);
-    updateInitProgress(100, '相片註冊與手動點名模式就緒');
+    console.error('App boot error:', err);
+    updateInitProgress(100, '系統就緒');
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootApp);
+} else {
+  bootApp();
+}
 
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
@@ -230,13 +217,8 @@ async function loadFaceModels() {
       throw new Error('face-api.js Script 尚未載入');
     }
 
-    updateInitProgress(50, '載入人臉偵測模型 tinyFaceDetector (1/3)...');
     await faceapi.nets.tinyFaceDetector.loadFromUri(CONFIG.MODEL_URL);
-
-    updateInitProgress(75, '載入特徵點模型 landmarkTiny (2/3)...');
     await faceapi.nets.faceLandmark68TinyNet.loadFromUri(CONFIG.MODEL_URL);
-
-    updateInitProgress(90, '載入特徵向量比對模型 recognition (3/3)...');
     await faceapi.nets.faceRecognitionNet.loadFromUri(CONFIG.MODEL_URL);
 
     isModelLoaded = true;

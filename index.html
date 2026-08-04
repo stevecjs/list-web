@@ -30,8 +30,8 @@
           點名系統
         </h1>
         <div class="text-[11px] text-slate-300 flex items-center gap-1.5">
-          <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
-          <span id="status-text">載入中 0%...</span>
+          <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+          <span id="status-text">系統就緒</span>
         </div>
       </div>
     </div>
@@ -47,17 +47,17 @@
   <!-- Main Content Viewport -->
   <main class="flex-1 max-w-md w-full mx-auto p-4 space-y-4 mb-16">
 
-    <!-- Visual System Loading Progress Bar -->
-    <div id="init-progress-container" class="glass-panel p-3 rounded-xl border border-sky-500/40 space-y-2">
+    <!-- Visual System Loading Progress Bar (Hidden by default after boot) -->
+    <div id="init-progress-container" class="glass-panel p-3 rounded-xl border border-sky-500/40 space-y-2 hidden">
       <div class="flex justify-between items-center text-xs font-bold">
         <span id="init-progress-status" class="text-sky-300 flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
-          正在初始化資料庫與 AI 引擎...
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          系統已就緒
         </span>
-        <span id="init-progress-percent" class="text-sky-400 font-mono font-extrabold">0%</span>
+        <span id="init-progress-percent" class="text-sky-400 font-mono font-extrabold">100%</span>
       </div>
       <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-700">
-        <div id="init-progress-bar" class="bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400 h-full w-0 transition-all duration-300"></div>
+        <div id="init-progress-bar" class="bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400 h-full w-full transition-all duration-300"></div>
       </div>
     </div>
 
@@ -250,7 +250,7 @@
         <div class="space-y-3 text-xs">
           <div class="flex justify-between py-2 border-b border-slate-800">
             <span class="text-slate-300">離線快取引擎</span>
-            <span class="text-emerald-400 font-bold">PWA ServiceWorker v3 就緒</span>
+            <span class="text-emerald-400 font-bold">PWA ServiceWorker 就緒</span>
           </div>
           <div class="flex justify-between py-2 border-b border-slate-800">
             <span class="text-slate-300">人臉辨識模組</span>
