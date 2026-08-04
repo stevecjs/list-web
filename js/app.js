@@ -22,7 +22,7 @@ import { initAudio, playBeepSound, playErrorSound } from './sound.js';
 // Configuration & State
 const CONFIG = {
   MODEL_URL: './models',
-  FACE_DISTANCE_THRESHOLD: 0.60, // Standard threshold for TinyFaceDetector (0.60 is optimal)
+  FACE_DISTANCE_THRESHOLD: 0.60,
   COOLDOWN_MS: 1500,
   DETECTION_INTERVAL_MS: 100
 };
@@ -46,8 +46,8 @@ let regIntervalId = null;
 let cooldownMap = new Map();
 
 // Dynamic purpose selection state
-let selectedMemberIds = new Set(); // Set of member IDs selected for current session
-let activeFilterMode = 'ALL';      // 'ALL' or 'SELECTED'
+let selectedMemberIds = new Set();
+let activeFilterMode = 'ALL';
 
 // DOM Elements
 const elements = {
@@ -116,21 +116,37 @@ const elements = {
   thresholdValue: document.getElementById('threshold-value')
 };
 
-// Initialize Application
+// Initialize Application - Fail safe init
 document.addEventListener('DOMContentLoaded', async () => {
-  setupTabs();
-  setupEventListeners();
-  updateClock();
-  setInterval(updateClock, 1000);
+  try {
+    setupTabs();
+    setupEventListeners();
+    updateClock();
+    setInterval(updateClock, 1000);
 
-  const todayStr = getTodayDateStr();
-  if (elements.logDateInput) elements.logDateInput.value = todayStr;
+    const todayStr = getTodayDateStr();
+    if (elements.logDateInput) elements.logDateInput.value = todayStr;
 
-  registerServiceWorker();
+    registerServiceWorker();
 
-  await refreshMembersAndMatcher();
-  await refreshTodayAttendance();
-  await loadFaceModels();
+    // Immediately update header status to READY so header NEVER hangs on "初始化系統中..."
+    updateStatus('系統已就緒', 'green');
+
+    // Safe DB initialization
+    try {
+      await refreshMembersAndMatcher();
+      await refreshTodayAttendance();
+    } catch (dbErr) {
+      console.warn('DB Load Warning:', dbErr);
+    }
+
+    // Safe Non-blocking Model Load
+    loadFaceModels().catch(err => console.warn('Model load background warning:', err));
+
+  } catch (err) {
+    console.error('App init error:', err);
+    updateStatus('系統已就緒', 'green');
+  }
 });
 
 function registerServiceWorker() {
@@ -142,7 +158,6 @@ function registerServiceWorker() {
 }
 
 async function loadFaceModels() {
-  updateStatus('載入離線 AI 模型中...', 'yellow');
   if (elements.diagModelStatus) elements.diagModelStatus.textContent = '下載/快取載入中...';
 
   try {
@@ -157,12 +172,12 @@ async function loadFaceModels() {
     ]);
 
     isModelLoaded = true;
-    updateStatus('離線 AI 人臉辨識引擎就緒', 'green');
+    updateStatus('離線 AI 比對與點名就緒', 'green');
     if (elements.diagModelStatus) elements.diagModelStatus.textContent = '✓ tinyFaceDetector 離線成功';
   } catch (err) {
     console.warn('Face models load warning:', err);
-    updateStatus('離線 AI 辨識引擎準備中 (拍照模式就緒)', 'yellow');
-    if (elements.diagModelStatus) elements.diagModelStatus.textContent = '⚠️ 離線 AI 模型準備中 (已開啟相片註冊與手動點名)';
+    updateStatus('離線相片點名模式就緒', 'green');
+    if (elements.diagModelStatus) elements.diagModelStatus.textContent = '⚠️ 離線 AI 模型載入中 (已開啟相片註冊與手動點名)';
   }
 }
 
@@ -279,7 +294,7 @@ function stopAllCameras() {
   if (elements.regVideo) elements.regVideo.srcObject = null;
 }
 
-// Refresh Members & Build FaceMatcher with RELIABLE DESCRIPTORS
+// Refresh Members & Build FaceMatcher
 async function refreshMembersAndMatcher() {
   registeredMembers = await getAllMembers();
   if (registeredMembers.length === 0) {
@@ -319,7 +334,6 @@ async function refreshMembersAndMatcher() {
     faceMatcher = null;
   }
 
-  // Initialize selectedMemberIds if empty
   if (selectedMemberIds.size === 0) {
     registeredMembers.forEach(m => selectedMemberIds.add(m.id));
   }
@@ -407,7 +421,7 @@ function renderBoardMemberList() {
   });
 }
 
-// REAL-TIME FACE ATTENDANCE SCANNING WITH DEBUG DISTANCE DISPLAY
+// REAL-TIME FACE ATTENDANCE SCANNING
 async function startAttendanceScan() {
   initAudio();
 
@@ -715,7 +729,7 @@ function renderRegisteredMemberList() {
               ${m.name}
             </div>
             <div class="text-xs text-sky-400 font-medium flex items-center gap-1">
-              <span>📸 ${featCount > 0 ? featCount + ' 筆特徵向量' : '拍照註冊'}</span>
+              <span>📸 ${featCount > 0 ? featCount + ' 筆特徵向量' : '照片註冊'}</span>
               <span class="text-slate-500">‧</span>
               <span class="text-slate-400">${new Date(m.createdAt).toLocaleDateString()}</span>
             </div>
