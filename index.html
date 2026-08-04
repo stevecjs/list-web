@@ -27,17 +27,17 @@
       </div>
       <div>
         <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
-          點名系统 <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 font-mono font-normal">list.daliuren.cc</span>
+          點名系統 <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono font-normal border border-sky-500/30">list.daliuren.cc</span>
         </h1>
-        <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+        <div class="text-[11px] text-slate-300 flex items-center gap-1.5">
           <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
           <span id="status-text">初始化系統中...</span>
         </div>
       </div>
     </div>
     <div class="text-right">
-      <div id="date-display" class="text-xs font-mono text-slate-300">--:--:--</div>
-      <div class="text-[10px] text-slate-500">100% 離線 PWA</div>
+      <div id="date-display" class="text-xs font-mono text-slate-200 font-bold">--:--:--</div>
+      <div class="text-[10px] text-sky-400 font-medium">100% 離線 PWA</div>
     </div>
   </header>
 
@@ -55,12 +55,12 @@
 
         <!-- Success Animation Banner -->
         <div id="scan-success-banner" class="success-banner hidden">
-          <div class="bg-emerald-500/95 backdrop-blur-md text-white px-5 py-2.5 rounded-full shadow-xl flex items-center space-x-2.5">
+          <div class="bg-emerald-500/95 backdrop-blur-md text-white px-5 py-2.5 rounded-full shadow-xl flex items-center space-x-2.5 border border-emerald-300/40">
             <svg class="w-6 h-6 text-white animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
             </svg>
             <div>
-              <div id="banner-name" class="font-bold text-sm leading-tight">--</div>
+              <div id="banner-name" class="font-bold text-sm leading-tight text-white">--</div>
               <div class="text-[11px] text-emerald-100">點名成功 ‧ <span id="banner-time">00:00</span></div>
             </div>
           </div>
@@ -69,13 +69,13 @@
 
       <!-- Scan Control Buttons -->
       <div class="flex gap-2">
-        <button id="btn-start-scan" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-semibold shadow-lg shadow-sky-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="btn-start-scan" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold shadow-lg shadow-sky-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
           </svg>
           開啟相機辨識
         </button>
-        <button id="btn-switch-camera" class="hidden py-3 px-4 rounded-xl glass-card text-slate-200 hover:bg-slate-700/60 font-medium active:scale-[0.98] transition-all flex items-center gap-1.5">
+        <button id="btn-switch-camera" class="hidden py-3 px-4 rounded-xl glass-card text-slate-100 hover:bg-slate-700/60 font-semibold active:scale-[0.98] transition-all flex items-center gap-1.5 border border-slate-600">
           <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
           </svg>
@@ -87,23 +87,23 @@
       <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3">
         <div class="flex justify-between items-center">
           <div>
-            <h2 class="text-sm font-bold text-slate-200">即時點名看板</h2>
-            <p class="text-xs text-slate-400">團員點名狀態 (點擊可手動補點)</p>
+            <h2 class="text-sm font-bold text-white">即時點名看板</h2>
+            <p class="text-xs text-slate-300">團員點名狀態 (點擊可手動補點)</p>
           </div>
           <div class="text-right">
-            <span class="text-lg font-black text-emerald-400" id="present-count">0</span>
-            <span class="text-sm text-slate-500"> / <span id="total-count">0</span> 人</span>
+            <span class="text-xl font-black text-emerald-400" id="present-count">0</span>
+            <span class="text-sm text-slate-300 font-medium"> / <span id="total-count">0</span> 人</span>
           </div>
         </div>
 
         <!-- Group Filter Bar -->
         <div id="board-group-filter" class="flex gap-1.5 overflow-x-auto pb-1.5 pt-1 text-xs">
-          <!-- Dynamically populated group pills (e.g. 全部, 第1組, 第2組...) -->
+          <!-- Dynamically populated group pills -->
         </div>
 
         <!-- Attendance Member Cards Grid -->
         <div id="board-member-list" class="grid grid-cols-1 gap-2 pt-1 max-h-[38vh] overflow-y-auto pr-1">
-          <!-- Member items dynamically populated by app.js -->
+          <!-- Member items -->
         </div>
       </div>
     </section>
@@ -112,14 +112,14 @@
     <section id="tab-register" class="tab-content hidden space-y-4">
       <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-4">
         <div class="flex items-center justify-between">
-          <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
             <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
             </svg>
             團員註冊與分組設定
           </h2>
-          <button id="btn-reset-reg-form" class="px-2.5 py-1 rounded-lg glass-card text-slate-400 hover:text-slate-200 text-xs flex items-center gap-1 transition-colors">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button id="btn-reset-reg-form" class="px-2.5 py-1 rounded-lg glass-card text-slate-200 hover:text-white text-xs flex items-center gap-1 transition-colors border border-slate-600">
+            <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
             重新整理
@@ -128,18 +128,18 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="space-y-1">
-            <label class="text-xs font-medium text-slate-300">團員姓名：</label>
+            <label class="text-xs font-semibold text-slate-200">團員姓名：</label>
             <input 
               type="text" 
               id="reg-name-input" 
               placeholder="請輸入姓名 (例: 王小明)" 
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-600 text-white placeholder-slate-400 text-sm focus:outline-none focus:border-sky-400 transition-colors"
             />
           </div>
 
           <div class="space-y-1">
-            <label class="text-xs font-medium text-slate-300">所屬分組：</label>
-            <select id="reg-group-select" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-sky-500">
+            <label class="text-xs font-semibold text-slate-200">所屬分組：</label>
+            <select id="reg-group-select" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-600 text-white text-sm focus:outline-none focus:border-sky-400">
               <option value="第 1 組">第 1 組</option>
               <option value="第 2 組">第 2 組</option>
               <option value="第 3 組">第 3 組</option>
@@ -157,18 +157,18 @@
           <canvas id="reg-canvas" class="camera-canvas"></canvas>
         </div>
 
-        <div id="reg-status-msg" class="text-xs text-slate-400 text-center">
+        <div id="reg-status-msg" class="text-xs font-medium text-slate-300 text-center">
           請點擊開啟相機並保持臉部於畫面中央
         </div>
 
         <div class="flex gap-2">
-          <button id="btn-start-reg-camera" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors">
+          <button id="btn-start-reg-camera" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-600 transition-colors">
             開啟註冊相機
           </button>
-          <button id="btn-switch-reg-camera" class="hidden py-2.5 px-3 rounded-xl glass-card text-sky-400 text-xs font-medium flex items-center gap-1">
+          <button id="btn-switch-reg-camera" class="hidden py-2.5 px-3 rounded-xl glass-card text-sky-300 text-xs font-bold flex items-center gap-1 border border-slate-600">
             切換鏡頭
           </button>
-          <button id="btn-capture-face" class="hidden flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-semibold shadow-lg shadow-emerald-500/25 transition-all">
+          <button id="btn-capture-face" class="hidden flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/25 transition-all">
             擷取特徵並註冊
           </button>
         </div>
@@ -176,7 +176,7 @@
 
       <!-- Registered Members List -->
       <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3">
-        <h3 class="text-sm font-bold text-slate-200">已註冊團員名冊</h3>
+        <h3 class="text-sm font-bold text-white">已註冊團員名冊</h3>
         <div id="registered-member-list" class="space-y-2 max-h-60 overflow-y-auto">
           <!-- Member items -->
         </div>
@@ -187,9 +187,9 @@
     <section id="tab-logs" class="tab-content hidden space-y-4">
       <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <h2 class="text-base font-bold text-slate-100">點名紀錄與複製</h2>
-          <button id="btn-copy-clipboard" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-semibold shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <h2 class="text-base font-bold text-white">點名紀錄與複製</h2>
+          <button id="btn-copy-clipboard" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all border border-sky-400/30">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
             </svg>
             一鍵複製點名紀錄至剪貼簿
@@ -199,12 +199,12 @@
         <!-- Filter Controls -->
         <div class="flex items-center gap-2 text-xs">
           <div class="flex-1 flex items-center space-x-1.5">
-            <label class="text-slate-400 whitespace-nowrap">日期：</label>
-            <input type="date" id="log-date-input" class="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-500" />
+            <label class="text-slate-200 font-semibold whitespace-nowrap">日期：</label>
+            <input type="date" id="log-date-input" class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-sky-400 font-medium" />
           </div>
           <div class="flex-1 flex items-center space-x-1.5">
-            <label class="text-slate-400 whitespace-nowrap">分組：</label>
-            <select id="log-group-filter" class="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-sky-500">
+            <label class="text-slate-200 font-semibold whitespace-nowrap">分組：</label>
+            <select id="log-group-filter" class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-sky-400 font-medium">
               <option value="ALL">全體團員</option>
             </select>
           </div>
@@ -212,7 +212,7 @@
 
         <!-- Formatted Session Preview Box -->
         <div class="relative">
-          <textarea id="log-preview-text" readonly class="w-full h-64 p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-300 font-mono text-xs focus:outline-none resize-none leading-relaxed"></textarea>
+          <textarea id="log-preview-text" readonly class="w-full h-64 p-3 rounded-xl bg-slate-900 text-emerald-300 font-mono text-xs focus:outline-none resize-none leading-relaxed border border-slate-700"></textarea>
         </div>
       </div>
     </section>
@@ -220,35 +220,35 @@
     <!-- TAB 4: SYSTEM SETTINGS -->
     <section id="tab-settings" class="tab-content hidden space-y-4">
       <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-4">
-        <h2 class="text-base font-bold text-slate-100">系統設定與診斷</h2>
+        <h2 class="text-base font-bold text-white">系統設定與診斷</h2>
 
         <div class="space-y-3 text-xs">
           <div class="flex justify-between py-2 border-b border-slate-800">
-            <span class="text-slate-400">部署域名</span>
-            <span class="text-sky-400 font-mono">list.daliuren.cc</span>
+            <span class="text-slate-300">部署域名</span>
+            <span class="text-sky-300 font-mono font-bold">list.daliuren.cc</span>
           </div>
           <div class="flex justify-between py-2 border-b border-slate-800">
-            <span class="text-slate-400">離線快取引擎</span>
-            <span class="text-emerald-400">PWA ServiceWorker v2 就緒</span>
+            <span class="text-slate-300">離線快取引擎</span>
+            <span class="text-emerald-400 font-bold">PWA ServiceWorker v2 就緒</span>
           </div>
           <div class="flex justify-between py-2 border-b border-slate-800">
-            <span class="text-slate-400">人臉辨識模組</span>
-            <span class="text-slate-200">tinyFaceDetector + faceRecognition</span>
+            <span class="text-slate-300">人臉辨識模組</span>
+            <span class="text-slate-100">tinyFaceDetector + faceRecognition</span>
           </div>
 
           <!-- Sensitivity threshold slider -->
           <div class="py-2 border-b border-slate-800 space-y-1.5">
             <div class="flex justify-between">
-              <span class="text-slate-400">歐氏距離門檻 (嚴格度)</span>
-              <span id="threshold-value" class="text-sky-400 font-mono font-bold">0.52</span>
+              <span class="text-slate-300 font-semibold">歐氏距離門檻 (嚴格度)</span>
+              <span id="threshold-value" class="text-sky-300 font-mono font-bold">0.52</span>
             </div>
-            <input type="range" id="threshold-input" min="0.40" max="0.65" step="0.01" value="0.52" class="w-full accent-sky-500" />
-            <p class="text-[10px] text-slate-500">較小數值代表更嚴格比對，較大數值降低漏判機率。</p>
+            <input type="range" id="threshold-input" min="0.40" max="0.65" step="0.01" value="0.52" class="w-full accent-sky-400" />
+            <p class="text-[10px] text-slate-400">較小數值代表更嚴格比對，較大數值降低漏判機率。</p>
           </div>
         </div>
 
         <div class="pt-2">
-          <button id="btn-clear-data" class="w-full py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-semibold border border-rose-500/30 transition-colors">
+          <button id="btn-clear-data" class="w-full py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold border border-rose-500/40 transition-colors">
             ⚠️ 清除所有 IndexedDB 本地資料
           </button>
         </div>
@@ -265,21 +265,21 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
         </svg>
-        <span class="text-[10px] font-medium">即時點名</span>
+        <span class="text-[10px] font-bold">即時點名</span>
       </button>
 
       <button data-tab="register" class="nav-tab text-slate-400 flex flex-col items-center gap-1 py-1 px-3">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
         </svg>
-        <span class="text-[10px] font-medium">團員與分組</span>
+        <span class="text-[10px] font-bold">團員與分組</span>
       </button>
 
       <button data-tab="logs" class="nav-tab text-slate-400 flex flex-col items-center gap-1 py-1 px-3">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
         </svg>
-        <span class="text-[10px] font-medium">紀錄複製</span>
+        <span class="text-[10px] font-bold">紀錄複製</span>
       </button>
 
       <button data-tab="settings" class="nav-tab text-slate-400 flex flex-col items-center gap-1 py-1 px-3">
@@ -287,7 +287,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
         </svg>
-        <span class="text-[10px] font-medium">系統設定</span>
+        <span class="text-[10px] font-bold">系統設定</span>
       </button>
     </div>
   </nav>
