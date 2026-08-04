@@ -45,73 +45,77 @@
 
     <!-- CAMERA & REAL-TIME AI FACE RECOGNITION BOX -->
     <div class="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3 shadow-xl">
+      <!-- Section Header Bar with Vector Badge & Collapse Button -->
       <div class="flex justify-between items-center">
-        <h2 class="text-sm font-extrabold text-white flex items-center gap-2">
-          <span class="text-sky-400 text-base">🤖</span> AI 實時人臉辨識鏡頭
-        </h2>
-        <span id="ai-vector-count-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-mono border border-sky-500/30">
+        <span id="ai-vector-count-badge" class="text-[10px] px-2.5 py-1 rounded-full bg-sky-500/20 text-sky-300 font-mono border border-sky-500/30 font-bold">
           比對庫: 0 人 (0 筆特徵)
         </span>
+        <button id="btn-toggle-camera-box" class="px-3 py-1 rounded-xl glass-card text-sky-300 hover:text-white font-bold text-xs border border-slate-700 transition-all flex items-center gap-1">
+          <span id="camera-toggle-icon">🔼</span> <span id="camera-toggle-text">收起鏡頭區塊</span>
+        </button>
       </div>
 
-      <!-- Camera Preview Box with Face Overlay Canvas -->
-      <div class="camera-container rounded-2xl overflow-hidden aspect-video relative bg-black border border-slate-800">
-        <video id="main-video" class="camera-video w-full h-full object-cover" autoplay playsinline muted></video>
-        <canvas id="face-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none z-10"></canvas>
-        <div class="scan-line"></div>
+      <!-- Collapsible Container -->
+      <div id="camera-box-content" class="space-y-3">
+        <!-- Camera Preview Box with Face Overlay Canvas -->
+        <div class="camera-container rounded-2xl overflow-hidden aspect-video relative bg-black border border-slate-800">
+          <video id="main-video" class="camera-video w-full h-full object-cover" autoplay playsinline muted></video>
+          <canvas id="face-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none z-10"></canvas>
+          <div class="scan-line"></div>
 
-        <!-- Success Animation Overlay -->
-        <div id="match-success-banner" class="hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-30 bg-emerald-500/95 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-2xl flex items-center space-x-2 border border-emerald-300/50">
-          <svg class="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-          </svg>
-          <div class="text-xs font-extrabold"><span id="match-success-name">--</span> 點名成功！</div>
-        </div>
-      </div>
-
-      <!-- Real-time AI Match Diagnostic Log -->
-      <div id="ai-realtime-diag" class="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-[11px] font-mono space-y-1">
-        <div class="flex justify-between text-slate-300">
-          <span>實時比對歐氏距離：</span>
-          <span id="diag-dist-reading" class="text-sky-400 font-bold">等待鏡頭開啟...</span>
-        </div>
-        <div class="flex items-center space-x-2 pt-1 border-t border-slate-800/80">
-          <span class="text-slate-400 text-[10px] whitespace-nowrap">比對門檻:</span>
-          <input type="range" id="threshold-slider" min="0.45" max="0.75" step="0.01" value="0.65" class="flex-1 accent-sky-400" />
-          <span id="threshold-slider-val" class="text-sky-300 font-bold text-[11px] w-8 text-right">0.65</span>
-        </div>
-      </div>
-
-      <!-- Camera Control Buttons -->
-      <div class="space-y-2">
-        <div class="flex gap-2 flex-wrap">
-          <button id="btn-open-camera" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-extrabold text-xs shadow-lg shadow-sky-500/25 active:scale-95 transition-all flex items-center justify-center gap-2">
-            📷 開啟鏡頭並啟動 AI 辨識
-          </button>
-          <button id="btn-switch-camera" class="hidden py-3 px-3 rounded-xl glass-card text-sky-300 font-bold text-xs border border-slate-600">
-            🔄 切換鏡頭
-          </button>
-          <button id="btn-refresh-camera" class="hidden py-3 px-3 rounded-xl glass-card text-emerald-300 font-bold text-xs border border-slate-600">
-            ⚡ 重新整理鏡頭
-          </button>
-          <button id="btn-close-camera" class="hidden py-3 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold text-xs">
-            🚫 關閉鏡頭
-          </button>
+          <!-- Success Animation Overlay -->
+          <div id="match-success-banner" class="hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-30 bg-emerald-500/95 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-2xl flex items-center space-x-2 border border-emerald-300/50">
+            <svg class="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <div class="text-xs font-extrabold"><span id="match-success-name">--</span> 點名成功！</div>
+          </div>
         </div>
 
-        <div class="flex gap-2 pt-1">
-          <input 
-            type="text" 
-            id="reg-name-input" 
-            placeholder="請輸入姓名 (例: 王小明)" 
-            class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border-2 border-sky-400 text-sky-300 placeholder-slate-400 font-bold text-sm focus:outline-none"
-          />
-          <button id="btn-ai-register" class="py-2.5 px-6 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-500/25 active:scale-95 transition-all">
-            註冊
-          </button>
+        <!-- Real-time AI Match Diagnostic Log -->
+        <div id="ai-realtime-diag" class="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-[11px] font-mono space-y-1">
+          <div class="flex justify-between text-slate-300">
+            <span>實時比對歐氏距離：</span>
+            <span id="diag-dist-reading" class="text-sky-400 font-bold">等待鏡頭開啟...</span>
+          </div>
+          <div class="flex items-center space-x-2 pt-1 border-t border-slate-800/80">
+            <span class="text-slate-400 text-[10px] whitespace-nowrap">比對門檻:</span>
+            <input type="range" id="threshold-slider" min="0.45" max="0.75" step="0.01" value="0.65" class="flex-1 accent-sky-400" />
+            <span id="threshold-slider-val" class="text-sky-300 font-bold text-[11px] w-8 text-right">0.65</span>
+          </div>
         </div>
-        <div id="reg-status-msg" class="text-xs font-bold text-sky-300 text-center min-h-[18px]">
-          請輸入姓名對準鏡頭後點擊「註冊」
+
+        <!-- Camera Control Buttons -->
+        <div class="space-y-2">
+          <div class="flex gap-2 flex-wrap">
+            <button id="btn-open-camera" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-extrabold text-xs shadow-lg shadow-sky-500/25 active:scale-95 transition-all flex items-center justify-center gap-2">
+              📷 開啟鏡頭並啟動 AI 辨識
+            </button>
+            <button id="btn-switch-camera" class="hidden py-3 px-3 rounded-xl glass-card text-sky-300 font-bold text-xs border border-slate-600">
+              🔄 切換鏡頭
+            </button>
+            <button id="btn-refresh-camera" class="hidden py-3 px-3 rounded-xl glass-card text-emerald-300 font-bold text-xs border border-slate-600">
+              ⚡ 重新整理鏡頭
+            </button>
+            <button id="btn-close-camera" class="hidden py-3 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold text-xs">
+              🚫 關閉鏡頭
+            </button>
+          </div>
+
+          <div class="flex gap-2 pt-1">
+            <input 
+              type="text" 
+              id="reg-name-input" 
+              placeholder="請輸入姓名 (例: 王小明)" 
+              class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border-2 border-sky-400 text-sky-300 placeholder-slate-400 font-bold text-sm focus:outline-none"
+            />
+            <button id="btn-ai-register" class="py-2.5 px-6 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-extrabold text-sm shadow-lg shadow-emerald-500/25 active:scale-95 transition-all">
+              註冊
+            </button>
+          </div>
+          <div id="reg-status-msg" class="text-xs font-bold text-sky-300 text-center min-h-[18px]">
+            請輸入姓名對準鏡頭後點擊「註冊」
+          </div>
         </div>
       </div>
     </div>

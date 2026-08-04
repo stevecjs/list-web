@@ -1,6 +1,6 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Real-time Euclidean Distance Monitor, Camera Control Bar (Open/Switch/Refresh/Close)
+ * Features Collapsible Camera Section, Real-time Distance Monitor & Camera Controls
  * list.daliuren.cc
  */
 
@@ -729,6 +729,26 @@
 
   // --- 9. EVENT BINDING & BOOTSTRAP ---
   function bindEvents() {
+    const btnToggleCamBox = $('btn-toggle-camera-box');
+    const camBoxContent = $('camera-box-content');
+    const camToggleIcon = $('camera-toggle-icon');
+    const camToggleText = $('camera-toggle-text');
+
+    if (btnToggleCamBox && camBoxContent) {
+      btnToggleCamBox.addEventListener('click', () => {
+        const isHidden = camBoxContent.classList.contains('hidden');
+        if (isHidden) {
+          camBoxContent.classList.remove('hidden');
+          if (camToggleIcon) camToggleIcon.textContent = '🔼';
+          if (camToggleText) camToggleText.textContent = '收起鏡頭區塊';
+        } else {
+          camBoxContent.classList.add('hidden');
+          if (camToggleIcon) camToggleIcon.textContent = '🔽';
+          if (camToggleText) camToggleText.textContent = '展開鏡頭區塊';
+        }
+      });
+    }
+
     const btnOpenCam = $('btn-open-camera');
     const btnSwitchCam = $('btn-switch-camera');
     const btnRefreshCam = $('btn-refresh-camera');
