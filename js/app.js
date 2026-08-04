@@ -1,6 +1,6 @@
 /**
  * app.js - Main Application Logic
- * Offline Face Recognition Attendance System with Real-Time Progress Bar
+ * Offline Face Recognition Attendance System with Real-Time Progress Bar & PWA Update Handler
  * list.daliuren.cc
  */
 
@@ -60,6 +60,10 @@ const elements = {
   statusText: document.getElementById('status-text'),
   dateDisplay: document.getElementById('date-display'),
   diagModelStatus: document.getElementById('diag-model-status'),
+
+  // PWA Update Buttons
+  updatePwaBtn: document.getElementById('btn-update-pwa'),
+  updatePwaSettingsBtn: document.getElementById('btn-update-pwa-settings'),
 
   // Progress Bar
   progressContainer: document.getElementById('init-progress-container'),
@@ -121,6 +125,29 @@ const elements = {
   thresholdInput: document.getElementById('threshold-input'),
   thresholdValue: document.getElementById('threshold-value')
 };
+
+// Force Update PWA Helper
+async function forceUpdatePWA() {
+  if (confirm('🔄 確定要清除所有舊快取並更新為最新網頁版本嗎？\n(團員與點名紀錄資料將安全保留)')) {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let reg of registrations) {
+          await reg.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (let key of keys) {
+          await caches.delete(key);
+        }
+      }
+    } catch (err) {
+      console.warn('Cache clear warning:', err);
+    }
+    window.location.href = window.location.origin + window.location.pathname + '?update=' + Date.now();
+  }
+}
 
 // Update Visual Progress Bar
 function updateInitProgress(percent, statusText) {
@@ -928,6 +955,10 @@ async function copyLogsToClipboard() {
 
 // SETTINGS & EVENT LISTENERS
 function setupEventListeners() {
+  // PWA Update Buttons
+  if (elements.updatePwaBtn) elements.updatePwaBtn.addEventListener('click', forceUpdatePWA);
+  if (elements.updatePwaSettingsBtn) elements.updatePwaSettingsBtn.addEventListener('click', forceUpdatePWA);
+
   // Scan tab buttons
   elements.startScanBtn.addEventListener('click', startAttendanceScan);
   elements.switchCameraBtn.addEventListener('click', async () => {

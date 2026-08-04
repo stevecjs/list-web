@@ -3,7 +3,7 @@
  * 100% Offline Cache-First Strategy for HTML, JS, CSS, and Local Model Binaries
  */
 
-const CACHE_NAME = 'list-face-attendance-v2';
+const CACHE_NAME = 'list-face-attendance-v3';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -29,20 +29,20 @@ const ASSETS_TO_CACHE = [
 
 // Install Event - Pre-cache all static assets & model binaries
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing Service Worker and caching assets...');
+  console.log('[SW] Installing Service Worker v3 and caching assets...');
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         return cache.addAll(ASSETS_TO_CACHE);
       })
-      .then(() => self.skipWaiting())
       .catch((err) => console.error('[SW] Cache addAll error:', err))
   );
 });
 
-// Activate Event - Clean up old caches
+// Activate Event - Clean up old caches immediately & claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating Service Worker...');
+  console.log('[SW] Activating Service Worker v3...');
   event.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(
