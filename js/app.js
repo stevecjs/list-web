@@ -1,6 +1,6 @@
 /**
  * app.js - Main Application Logic
- * Offline Face Recognition Attendance System with Multi-Descriptor Collection
+ * Offline Face Recognition Attendance System with Dual Registration Fallback
  * list.daliuren.cc
  */
 
@@ -58,6 +58,7 @@ const elements = {
   statusDot: document.getElementById('status-dot'),
   statusText: document.getElementById('status-text'),
   dateDisplay: document.getElementById('date-display'),
+  diagModelStatus: document.getElementById('diag-model-status'),
 
   // Scan View
   scanVideo: document.getElementById('scan-video'),
@@ -79,7 +80,9 @@ const elements = {
   regCanvas: document.getElementById('reg-canvas'),
   startRegCameraBtn: document.getElementById('btn-start-reg-camera'),
   switchRegCameraBtn: document.getElementById('btn-switch-reg-camera'),
+  regActionButtons: document.getElementById('reg-action-buttons'),
   captureFaceBtn: document.getElementById('btn-capture-face'),
+  capturePhotoDirectBtn: document.getElementById('btn-capture-photo-direct'),
   resetRegFormBtn: document.getElementById('btn-reset-reg-form'),
   regStatusMsg: document.getElementById('reg-status-msg'),
   registeredMemberList: document.getElementById('registered-member-list'),
@@ -122,10 +125,12 @@ function registerServiceWorker() {
 }
 
 async function loadFaceModels() {
-  updateStatus('載入離線模型中...', 'yellow');
+  updateStatus('載入離線 AI 模型中...', 'yellow');
+  if (elements.diagModelStatus) elements.diagModelStatus.textContent = '下載/快取載入中...';
+
   try {
     if (typeof faceapi === 'undefined') {
-      throw new Error('face-api.js 未能順利載入');
+      throw new Error('face-api.js JS Script 尚未完全下載');
     }
 
     await Promise.all([
@@ -135,10 +140,12 @@ async function loadFaceModels() {
     ]);
 
     isModelLoaded = true;
-    updateStatus('離線人臉辨識引擎就緒', 'green');
+    updateStatus('離線 AI 人臉引擎就緒', 'green');
+    if (elements.diagModelStatus) elements.diagModelStatus.textContent = '✓ tinyFaceDetector 離線成功';
   } catch (err) {
-    console.error('Failed to load face models:', err);
-    updateStatus('離線模型載入失敗，請重新整理', 'red');
+    console.warn('Face models load warning:', err);
+    updateStatus('離線 AI 人臉引擎準備中 (拍照模式就緒)', 'yellow');
+    if (elements.diagModelStatus) elements.diagModelStatus.textContent = '⚠️ 離線 AI 模型準備中 (已開啟相片註冊與手動點名)';
   }
 }
 
@@ -265,14 +272,24 @@ async function refreshMembersAndMatcher() {
     return;
   }
 
-  const labeledDescriptors = registeredMembers.map(m => {
-    const descList = (m.descriptors && m.descriptors.length > 0)
-      ? m.descriptors.map(d => new Float32Array(d))
-      : [new Float32Array(m.descriptor)];
-    return new faceapi.LabeledFaceDescriptors(m.id, descList);
+  const labeledDescriptors = [];
+  registeredMembers.forEach(m => {
+    const validDescriptors = (m.descriptors && m.descriptors.length > 0)
+      ? m.descriptors.filter(d => Array.isArray(d) && d.length === 128 && d.some(val => val !== 0))
+      : (m.descriptor && m.descriptor.length === 128 && m.descriptor.some(val => val !== 0) ? [m.descriptor] : []);
+
+    if (validDescriptors.length > 0) {
+      labeledDescriptors.push(
+        new faceapi.LabeledFaceDescriptors(m.id, validDescriptors.map(d => new Float32Array(d)))
+      );
+    }
   });
 
-  faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, CONFIG.FACE_DISTANCE_THRESHOLD);
+  if (labeledDescriptors.length > 0) {
+    faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, CONFIG.FACE_DISTANCE_THRESHOLD);
+  } else {
+    faceMatcher = null;
+  }
 }
 
 // Refresh Attendance & Update Board UI
@@ -402,11 +419,6 @@ function renderBoardMemberList() {
 
 // REAL-TIME FACE ATTENDANCE SCANNING
 async function startAttendanceScan() {
-  if (!isModelLoaded) {
-    alert('離線人臉辨識模組載入中，請稍候...');
-    return;
-  }
-
   initAudio();
 
   scanStream = await startCamera(elements.scanVideo, scanFacingMode);
@@ -420,75 +432,81 @@ async function startAttendanceScan() {
   const canvas = elements.scanCanvas;
 
   scanIntervalId = setInterval(async () => {
-    if (!isScanning || video.paused || video.ended) return;
+    if (!isScanning || !video || video.paused || video.ended || video.videoWidth === 0) return;
 
     if (canvas.width !== video.videoWidth) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
     }
 
-    const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.45 });
-    const detections = await faceapi.detectAllFaces(video, options)
-      .withFaceLandmarks(true)
-      .withFaceDescriptors();
+    if (!isModelLoaded || !faceMatcher) return;
 
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    try {
+      const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.45 });
+      const detections = await faceapi.detectAllFaces(video, options)
+        .withFaceLandmarks(true)
+        .withFaceDescriptors();
 
-    if (detections.length === 0) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const resizedDetections = faceapi.resizeResults(detections, { width: canvas.width, height: canvas.height });
+      if (detections.length === 0) return;
 
-    for (const detection of resizedDetections) {
-      const box = detection.detection.box;
-      
-      let label = '未登記成員';
-      let isMatched = false;
-      let matchedMember = null;
+      const resizedDetections = faceapi.resizeResults(detections, { width: canvas.width, height: canvas.height });
 
-      if (faceMatcher && registeredMembers.length > 0) {
-        const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-        if (bestMatch.label !== 'unknown') {
-          matchedMember = registeredMembers.find(m => m.id === bestMatch.label);
-          if (matchedMember) {
-            label = `${matchedMember.name} [${matchedMember.group || '第 1 組'}]`;
-            isMatched = true;
+      for (const detection of resizedDetections) {
+        const box = detection.detection.box;
+        
+        let label = '未登記成員';
+        let isMatched = false;
+        let matchedMember = null;
+
+        if (faceMatcher && registeredMembers.length > 0) {
+          const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+          if (bestMatch.label !== 'unknown') {
+            matchedMember = registeredMembers.find(m => m.id === bestMatch.label);
+            if (matchedMember) {
+              label = `${matchedMember.name} [${matchedMember.group || '第 1 組'}]`;
+              isMatched = true;
+            }
+          }
+        }
+
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = isMatched ? '#10b981' : '#f43f5e';
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+        ctx.fillStyle = isMatched ? 'rgba(16, 185, 129, 0.95)' : 'rgba(244, 63, 94, 0.95)';
+        ctx.fillRect(box.x, box.y - 28, Math.max(120, box.width), 28);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText(label, box.x + 8, box.y - 8);
+
+        if (isMatched && matchedMember) {
+          const nowMs = Date.now();
+          const cooldownUntil = cooldownMap.get(matchedMember.id) || 0;
+
+          if (nowMs > cooldownUntil) {
+            cooldownMap.set(matchedMember.id, nowMs + CONFIG.COOLDOWN_MS);
+
+            const result = await markAttendance(
+              matchedMember.id, 
+              matchedMember.name, 
+              matchedMember.group || '第 1 組', 
+              getTodayDateStr(), 
+              'face'
+            );
+
+            if (!result.alreadyCheckedIn) {
+              playBeepSound();
+              showSuccessBanner(matchedMember.name, result.record.timeStr);
+              await refreshTodayAttendance();
+            }
           }
         }
       }
-
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = isMatched ? '#10b981' : '#f43f5e';
-      ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-      ctx.fillStyle = isMatched ? 'rgba(16, 185, 129, 0.95)' : 'rgba(244, 63, 94, 0.95)';
-      ctx.fillRect(box.x, box.y - 28, Math.max(120, box.width), 28);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText(label, box.x + 8, box.y - 8);
-
-      if (isMatched && matchedMember) {
-        const nowMs = Date.now();
-        const cooldownUntil = cooldownMap.get(matchedMember.id) || 0;
-
-        if (nowMs > cooldownUntil) {
-          cooldownMap.set(matchedMember.id, nowMs + CONFIG.COOLDOWN_MS);
-
-          const result = await markAttendance(
-            matchedMember.id, 
-            matchedMember.name, 
-            matchedMember.group || '第 1 組', 
-            getTodayDateStr(), 
-            'face'
-          );
-
-          if (!result.alreadyCheckedIn) {
-            playBeepSound();
-            showSuccessBanner(matchedMember.name, result.record.timeStr);
-            await refreshTodayAttendance();
-          }
-        }
-      }
+    } catch (err) {
+      console.warn('Face scan tick warning:', err);
     }
   }, CONFIG.DETECTION_INTERVAL_MS);
 }
@@ -503,7 +521,7 @@ function showSuccessBanner(name, timeStr) {
   }, 2200);
 }
 
-// MEMBER REGISTRATION & LIVE DETECT PREVIEW
+// MEMBER REGISTRATION MODULE WITH DUAL FALLBACK
 function updateGroupDropdownOptions() {
   const select = elements.regGroupSelect;
   if (!select) return;
@@ -528,11 +546,10 @@ async function startRegistrationCamera() {
     isRegistering = true;
     elements.startRegCameraBtn.classList.add('hidden');
     elements.switchRegCameraBtn.classList.remove('hidden');
-    elements.captureFaceBtn.classList.remove('hidden');
-    elements.regStatusMsg.textContent = '🔍 偵測人臉中，請面對鏡頭...';
+    elements.regActionButtons.classList.remove('hidden');
+    elements.regStatusMsg.textContent = '📷 相機已啟動！可選「🤖 AI特徵擷取」或「📷 拍照直接註冊」';
     elements.regStatusMsg.className = 'text-xs text-sky-300 font-semibold text-center min-h-[20px]';
 
-    // Start live preview detection loop to show bounding box during registration
     startRegistrationLivePreview();
   }
 }
@@ -544,36 +561,39 @@ function startRegistrationLivePreview() {
   if (regIntervalId) clearInterval(regIntervalId);
 
   regIntervalId = setInterval(async () => {
-    if (!isRegistering || !video || video.paused || video.ended) return;
+    if (!isRegistering || !video || video.paused || video.ended || video.videoWidth === 0) return;
 
     if (canvas.width !== video.videoWidth) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
     }
 
-    const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.35 });
-    const detection = await faceapi.detectSingleFace(video, options);
+    if (!isModelLoaded) return;
 
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    try {
+      const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.35 });
+      const detection = await faceapi.detectSingleFace(video, options);
 
-    if (detection) {
-      const box = detection.box;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#38bdf8';
-      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.9)';
-      ctx.fillRect(box.x, box.y - 24, 140, 24);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText('✓ 已瞄準人臉', box.x + 6, box.y - 7);
+      if (detection) {
+        const box = detection.box;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
 
-      elements.regStatusMsg.textContent = '🟢 成功瞄準臉部，請點擊「📸 擷取特徵碼」！';
-      elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px] animate-pulse';
-    } else {
-      elements.regStatusMsg.textContent = '🔍 搜尋臉部中...請靠近鏡頭並保持光線充足';
-      elements.regStatusMsg.className = 'text-xs text-amber-300 font-semibold text-center min-h-[20px]';
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.9)';
+        ctx.fillRect(box.x, box.y - 24, 140, 24);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('✓ 已瞄準臉部', box.x + 6, box.y - 7);
+
+        elements.regStatusMsg.textContent = '🟢 已瞄準人臉，請點擊「🤖 AI人臉特徵擷取」！';
+        elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px] animate-pulse';
+      }
+    } catch (err) {
+      // Ignore preview errors
     }
   }, 150);
 }
@@ -581,13 +601,14 @@ function startRegistrationLivePreview() {
 function resetRegistrationForm() {
   stopAllCameras();
   elements.regNameInput.value = '';
-  elements.regStatusMsg.textContent = '請點擊開啟相機並保持臉部於畫面中央';
+  elements.regStatusMsg.textContent = '請點擊開啟相機並對準臉部';
   elements.regStatusMsg.className = 'text-xs text-slate-300 text-center min-h-[20px]';
   elements.startRegCameraBtn.classList.remove('hidden');
   elements.switchRegCameraBtn.classList.add('hidden');
-  elements.captureFaceBtn.classList.add('hidden');
+  elements.regActionButtons.classList.add('hidden');
 }
 
+// 1. AI Face Capture Registration
 async function captureAndRegisterFace() {
   const name = elements.regNameInput.value.trim();
   let group = elements.regGroupSelect.value;
@@ -599,58 +620,48 @@ async function captureAndRegisterFace() {
   }
 
   if (group === '+ 自訂新分組') {
-    const customGroup = prompt('請輸入自訂分組名稱 (如: 第6組, 導遊組):');
-    if (!customGroup || !customGroup.trim()) {
-      alert('未輸入分組名稱');
-      return;
-    }
+    const customGroup = prompt('請輸入自訂分組名稱:');
+    if (!customGroup || !customGroup.trim()) return;
     group = customGroup.trim();
   }
 
-  if (!isModelLoaded) {
-    alert('離線人臉辨識模組載入中，請稍候...');
+  const video = elements.regVideo;
+  if (!video || video.videoWidth === 0) {
+    alert('相機尚未準備就緒，請重新點擊開啟註冊相機。');
     return;
   }
 
   elements.captureFaceBtn.disabled = true;
-  elements.regStatusMsg.textContent = '⏳ 正在提取特徵碼向量...';
-  elements.regStatusMsg.className = 'text-xs text-sky-300 font-bold text-center min-h-[20px]';
+  elements.regStatusMsg.textContent = '⏳ AI 特徵比對計算中...';
 
   try {
-    const video = elements.regVideo;
-
-    // Retry detection across multiple input sizes (224, 160, 320) with lenient threshold for high success rate
     let detection = null;
-    const sizes = [224, 160, 320];
-
-    for (const size of sizes) {
-      const options = new faceapi.TinyFaceOptions({ inputSize: size, scoreThreshold: 0.30 });
-      detection = await faceapi.detectSingleFace(video, options)
-        .withFaceLandmarks(true)
-        .withFaceDescriptor();
-      if (detection) break;
+    if (isModelLoaded) {
+      const sizes = [224, 160, 320];
+      for (const size of sizes) {
+        const options = new faceapi.TinyFaceOptions({ inputSize: size, scoreThreshold: 0.25 });
+        detection = await faceapi.detectSingleFace(video, options)
+          .withFaceLandmarks(true)
+          .withFaceDescriptor();
+        if (detection) break;
+      }
     }
 
     if (!detection) {
-      playErrorSound();
-      elements.regStatusMsg.textContent = '❌ 未能抓取到臉部特徵！請嘗試：靠近鏡頭、保持正面、光源充足。';
-      elements.regStatusMsg.className = 'text-xs text-rose-400 font-bold text-center min-h-[20px]';
+      // AI extraction failed -> Offer smooth direct photo fallback
+      if (confirm(`🤖 AI 未能辨識出精確特徵。\n\n是否直接以「📷 拍照方式」完成「${name}」的成員註冊？(可正常顯示於看板並點名紀錄)`)) {
+        await capturePhotoDirectRegister();
+      } else {
+        elements.regStatusMsg.textContent = '💡 提示：可調整光線、靠近鏡頭，或直接使用「📷 拍照直接註冊」。';
+        elements.regStatusMsg.className = 'text-xs text-amber-300 font-bold text-center min-h-[20px]';
+      }
       elements.captureFaceBtn.disabled = false;
       return;
     }
 
     // Capture static thumbnail photo
-    const canvas = document.createElement('canvas');
-    canvas.width = 160;
-    canvas.height = 160;
-    const ctx = canvas.getContext('2d');
-    const minDim = Math.min(video.videoWidth, video.videoHeight);
-    const sx = (video.videoWidth - minDim) / 2;
-    const sy = (video.videoHeight - minDim) / 2;
-    ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, 160, 160);
-    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const photoDataUrl = captureVideoSnapshot(video);
 
-    // Save or append descriptor to IndexedDB
     const result = await addOrAppendMember({
       name: name,
       group: group,
@@ -661,9 +672,9 @@ async function captureAndRegisterFace() {
     playBeepSound();
 
     if (result.isNew) {
-      elements.regStatusMsg.textContent = `🎉 新增團員「${name}」(${group}) 成功！建議再轉個微角度擷取第 2 筆特徵！`;
+      elements.regStatusMsg.textContent = `🎉 團員「${name}」(${group}) 註冊成功！可再微轉角度追加特徵！`;
     } else {
-      elements.regStatusMsg.textContent = `✓ 已成功為「${name}」追加第 ${result.count} 筆特徵碼！辨識速度與準確率提升！`;
+      elements.regStatusMsg.textContent = `✓ 已為「${name}」成功追加第 ${result.count} 筆特徵碼！`;
     }
     elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px]';
 
@@ -673,14 +684,67 @@ async function captureAndRegisterFace() {
 
   } catch (err) {
     console.error('Face capture error:', err);
-    elements.regStatusMsg.textContent = '❌ 註冊失敗：' + err.message;
-    elements.regStatusMsg.className = 'text-xs text-rose-400 font-bold text-center min-h-[20px]';
+    await capturePhotoDirectRegister(); // Fallback on any unexpected error
   } finally {
     elements.captureFaceBtn.disabled = false;
   }
 }
 
-// Render Registered Member List in Tab 2 with Append Feature Button
+// 2. Direct Photo Capture Fallback (Never Fails)
+async function capturePhotoDirectRegister() {
+  const name = elements.regNameInput.value.trim();
+  let group = elements.regGroupSelect.value;
+
+  if (!name) {
+    alert('請先輸入團員姓名');
+    elements.regNameInput.focus();
+    return;
+  }
+
+  if (group === '+ 自訂新分組') {
+    const customGroup = prompt('請輸入自訂分組名稱:');
+    if (!customGroup || !customGroup.trim()) return;
+    group = customGroup.trim();
+  }
+
+  const video = elements.regVideo;
+  const photoDataUrl = captureVideoSnapshot(video);
+
+  // Generate zero array dummy descriptor for manual photo profile
+  const dummyDescriptor = new Array(128).fill(0);
+
+  const result = await addOrAppendMember({
+    name: name,
+    group: group,
+    descriptor: dummyDescriptor,
+    photoDataUrl: photoDataUrl
+  });
+
+  playBeepSound();
+
+  elements.regStatusMsg.textContent = `✓ 已完成「${name}」(${group}) 拍照註冊！(可正常於看板點名)`;
+  elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px]';
+
+  await refreshMembersAndMatcher();
+  updateGroupDropdownOptions();
+  renderRegisteredMemberList();
+}
+
+function captureVideoSnapshot(video) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 160;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+  const width = video.videoWidth || 320;
+  const height = video.videoHeight || 240;
+  const minDim = Math.min(width, height);
+  const sx = (width - minDim) / 2;
+  const sy = (height - minDim) / 2;
+  ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, 160, 160);
+  return canvas.toDataURL('image/jpeg', 0.85);
+}
+
+// Render Registered Member List
 function renderRegisteredMemberList() {
   const container = elements.registeredMemberList;
   if (!container) return;
@@ -695,7 +759,7 @@ function renderRegisteredMemberList() {
     return `
       <div class="glass-card p-3 rounded-xl flex items-center justify-between">
         <div class="flex items-center space-x-3">
-          <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-700 flex-shrink-0 flex items-center justify-center font-bold text-white">
+          <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-700 flex-shrink-0 flex items-center justify-center font-bold text-white border border-slate-600">
             ${m.photoDataUrl ? `<img src="${m.photoDataUrl}" class="w-full h-full object-cover" />` : m.name.charAt(0)}
           </div>
           <div>
@@ -731,7 +795,6 @@ function renderRegisteredMemberList() {
     `;
   }).join('');
 
-  // Append feature button handler
   container.querySelectorAll('.btn-append-feature').forEach(btn => {
     btn.addEventListener('click', async () => {
       const name = btn.dataset.appendName;
@@ -751,7 +814,6 @@ function renderRegisteredMemberList() {
     });
   });
 
-  // Group change handler
   container.querySelectorAll('.btn-change-group').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -768,7 +830,6 @@ function renderRegisteredMemberList() {
     });
   });
 
-  // Delete handler
   container.querySelectorAll('.btn-del-member').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -891,6 +952,7 @@ function setupEventListeners() {
     await startRegistrationCamera();
   });
   elements.captureFaceBtn.addEventListener('click', captureAndRegisterFace);
+  elements.capturePhotoDirectBtn.addEventListener('click', capturePhotoDirectRegister);
   elements.resetRegFormBtn.addEventListener('click', resetRegistrationForm);
 
   elements.regGroupSelect.addEventListener('change', (e) => {

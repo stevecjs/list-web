@@ -116,7 +116,7 @@
             <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
             </svg>
-            團員特徵採集 (支援同人多角度)
+            團員註冊與特徵採集
           </h2>
           <button id="btn-reset-reg-form" class="px-2.5 py-1 rounded-lg glass-card text-slate-200 hover:text-white text-xs flex items-center gap-1 transition-colors border border-slate-600">
             <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -124,14 +124,6 @@
             </svg>
             重置表格
           </button>
-        </div>
-
-        <!-- Tip Box -->
-        <div class="p-3 bg-sky-950/40 border border-sky-500/30 rounded-xl text-xs text-sky-200 space-y-1">
-          <div class="font-bold flex items-center gap-1 text-sky-300">
-            💡 提高辨識速度與準確率技巧：
-          </div>
-          <div>輸入相同姓名，可連續拍攝 <b>正面、微側臉、笑臉或戴眼鏡</b> 特徵！同一個人採集 2~4 筆特徵碼可大幅提升辨識速度。</div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -169,16 +161,24 @@
           請點擊開啟相機並對準臉部
         </div>
 
-        <div class="flex gap-2">
-          <button id="btn-start-reg-camera" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-600 transition-colors">
-            開啟註冊相機
-          </button>
-          <button id="btn-switch-reg-camera" class="hidden py-2.5 px-3 rounded-xl glass-card text-sky-300 text-xs font-bold flex items-center gap-1 border border-slate-600">
-            切換鏡頭
-          </button>
-          <button id="btn-capture-face" class="hidden flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/25 transition-all">
-            📸 擷取特徵碼 (可重複擷取)
-          </button>
+        <div class="flex flex-col gap-2">
+          <div class="flex gap-2">
+            <button id="btn-start-reg-camera" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-600 transition-colors">
+              📷 開啟註冊相機
+            </button>
+            <button id="btn-switch-reg-camera" class="hidden py-2.5 px-3 rounded-xl glass-card text-sky-300 text-xs font-bold flex items-center gap-1 border border-slate-600">
+              切換鏡頭
+            </button>
+          </div>
+
+          <div id="reg-action-buttons" class="hidden flex gap-2">
+            <button id="btn-capture-face" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-500/25 transition-all">
+              🤖 AI人臉特徵擷取
+            </button>
+            <button id="btn-capture-photo-direct" class="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-lg shadow-sky-500/25 transition-all">
+              📷 拍照直接註冊 (防卡關)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -241,7 +241,7 @@
           </div>
           <div class="flex justify-between py-2 border-b border-slate-800">
             <span class="text-slate-300">人臉辨識模組</span>
-            <span class="text-slate-100">tinyFaceDetector + faceRecognition</span>
+            <span id="diag-model-status" class="text-slate-100">載入診斷中...</span>
           </div>
 
           <!-- Sensitivity threshold slider -->
@@ -265,7 +265,7 @@
 
   </main>
 
-  <!-- Bottom Navigation Bar (Optimized for Mobile/Safari) -->
+  <!-- Bottom Navigation Bar -->
   <nav class="fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-slate-800 px-2 py-2">
     <div class="max-w-md mx-auto flex justify-around items-center">
       <button data-tab="scan" class="nav-tab nav-tab-active text-sky-400 flex flex-col items-center gap-1 py-1 px-3">
