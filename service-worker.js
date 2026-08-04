@@ -1,9 +1,9 @@
 /**
  * service-worker.js - Progressive Web App Service Worker for list.daliuren.cc
- * 100% Offline Cache-First Strategy for Clean Single-File Application
+ * 100% Offline Cache-First Strategy with Valid PNG & SVG App Icons
  */
 
-const CACHE_NAME = 'list-face-attendance-v4';
+const CACHE_NAME = 'list-face-attendance-v5';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -13,12 +13,13 @@ const ASSETS_TO_CACHE = [
   './css/custom.css',
   './js/app.js',
   './assets/icon.svg',
+  './assets/apple-touch-icon.png',
   './assets/icon-192.png',
   './assets/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing Service Worker v4...');
+  console.log('[SW] Installing Service Worker v5...');
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -28,7 +29,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating Service Worker v4...');
+  console.log('[SW] Activating Service Worker v5...');
   event.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(
