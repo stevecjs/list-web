@@ -1,6 +1,6 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Real-time Euclidean Distance Monitor & Pure AI Feature Registration
+ * Features Real-time Euclidean Distance Monitor, Camera Control Bar (Open/Switch/Refresh/Close)
  * list.daliuren.cc
  */
 
@@ -462,6 +462,12 @@
     const video = $('main-video');
     if (video) video.srcObject = null;
     if (scanIntervalId) clearInterval(scanIntervalId);
+
+    const canvas = $('face-canvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
   }
 
   async function restartCamera() {
@@ -663,60 +669,7 @@
     return canvas.toDataURL('image/jpeg', 0.85);
   }
 
-  // --- 8. MANUAL TEST DIAGNOSTIC BUTTON ---
-  async function testAiMatchDiagnostic() {
-    const video = $('main-video');
-    if (!video || video.videoWidth === 0) {
-      alert('請先開啟相機！');
-      return;
-    }
-
-    if (!isAiModelLoaded) {
-      alert('AI 模型尚未載入完成。');
-      return;
-    }
-
-    try {
-      const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.2 });
-      const detection = await faceapi.detectSingleFace(video, options)
-        .withFaceLandmarks(true)
-        .withFaceDescriptor();
-
-      if (!detection) {
-        alert('🧪 [AI 辨識診斷分析]\n\n目前鏡頭畫面中未搜尋到人臉。請靠近鏡頭重試。');
-        return;
-      }
-
-      let report = `🧪 [AI 辨識診斷分析報告]\n`;
-      report += `----------------------------------------\n`;
-      report += `✓ 成功鎖定人臉！已提取 128 維特徵向量。\n`;
-
-      if (registeredMembers.length === 0) {
-        report += `⚠️ 比對庫目前有 0 位成員，請先新增註冊團員。\n`;
-      } else {
-        report += `比對庫中 ${registeredMembers.length} 位成員歐氏距離計算結果：\n\n`;
-        registeredMembers.forEach(m => {
-          let minDistance = 999;
-          if (m.descriptors && m.descriptors.length > 0) {
-            m.descriptors.forEach(d => {
-              const dist = faceapi.euclideanDistance(detection.descriptor, new Float32Array(d));
-              if (dist < minDistance) minDistance = dist;
-            });
-          }
-          const distText = minDistance < 100 ? minDistance.toFixed(3) : '無特徵碼';
-          const matchFlag = minDistance <= faceThreshold ? '✓ 成功匹配！' : '未達門檻';
-          report += `‧ ${m.name}: 歐氏距離 ${distText} (${matchFlag})\n`;
-        });
-      }
-
-      alert(report);
-
-    } catch (e) {
-      alert(`診斷失敗: ${e.message}`);
-    }
-  }
-
-  // --- 9. LOGS & CLIPBOARD ---
+  // --- 8. LOGS & CLIPBOARD ---
   async function generateLogsText() {
     const logs = await getAttendanceByDateDB(getTodayStr());
     const attendedMap = new Map();
@@ -774,12 +727,12 @@
     }
   }
 
-  // --- 10. EVENT BINDING & BOOTSTRAP ---
+  // --- 9. EVENT BINDING & BOOTSTRAP ---
   function bindEvents() {
     const btnOpenCam = $('btn-open-camera');
     const btnSwitchCam = $('btn-switch-camera');
     const btnRefreshCam = $('btn-refresh-camera');
-    const btnTestAi = $('btn-test-ai-match');
+    const btnCloseCam = $('btn-close-camera');
     const btnAiReg = $('btn-ai-register');
     const thresholdSlider = $('threshold-slider');
 
@@ -789,7 +742,7 @@
         if (btnOpenCam) btnOpenCam.classList.add('hidden');
         if (btnSwitchCam) btnSwitchCam.classList.remove('hidden');
         if (btnRefreshCam) btnRefreshCam.classList.remove('hidden');
-        if (btnTestAi) btnTestAi.classList.remove('hidden');
+        if (btnCloseCam) btnCloseCam.classList.remove('hidden');
       });
     }
 
@@ -804,7 +757,18 @@
       btnRefreshCam.addEventListener('click', restartCamera);
     }
 
-    if (btnTestAi) btnTestAi.addEventListener('click', testAiMatchDiagnostic);
+    if (btnCloseCam) {
+      btnCloseCam.addEventListener('click', () => {
+        stopCamera();
+        if (btnOpenCam) btnOpenCam.classList.remove('hidden');
+        if (btnSwitchCam) btnSwitchCam.classList.add('hidden');
+        if (btnRefreshCam) btnRefreshCam.classList.add('hidden');
+        if (btnCloseCam) btnCloseCam.classList.add('hidden');
+        const diagReading = $('diag-dist-reading');
+        if (diagReading) diagReading.textContent = '相機已關閉';
+      });
+    }
+
     if (btnAiReg) btnAiReg.addEventListener('click', registerMemberWithAi);
 
     if (thresholdSlider) {
@@ -945,7 +909,7 @@
     });
   }
 
-  // --- 11. BOOTSTRAP ---
+  // --- 10. BOOTSTRAP ---
   function boot() {
     bindEvents();
     refreshData();
