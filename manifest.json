@@ -1,7 +1,7 @@
 {
-  "name": "點名 - 離線人臉辨識系統",
-  "short_name": "點",
-  "description": "旅遊團隊離線人臉辨識與即時點名系統 (list.daliuren.cc)",
+  "name": "點名 - 離線點名系統",
+  "short_name": "點名",
+  "description": "國外旅遊離線點名與成員管理系統 (list.daliuren.cc)",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",

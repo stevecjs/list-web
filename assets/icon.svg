@@ -17,5 +17,5 @@
   <rect width="512" height="512" rx="120" fill="url(#bg)" />
   <circle cx="256" cy="256" r="200" fill="none" stroke="rgba(56, 189, 248, 0.3)" stroke-width="8" />
   <circle cx="256" cy="256" r="180" fill="none" stroke="rgba(56, 189, 248, 0.6)" stroke-width="3" stroke-dasharray="12, 12" />
-  <text x="256" y="275" dominant-baseline="middle" text-anchor="middle" fill="url(#glyph)" font-family="-apple-system, BlinkMacSystemFont, 'PingFang TC', 'SF Pro Display', 'Microsoft JhengHei', sans-serif" font-size="260" font-weight="900" filter="url(#glow)">點</text>
+  <text x="256" y="270" dominant-baseline="middle" text-anchor="middle" fill="url(#glyph)" font-family="-apple-system, BlinkMacSystemFont, 'PingFang TC', 'SF Pro Display', 'Microsoft JhengHei', sans-serif" font-size="180" font-weight="900" filter="url(#glow)">點名</text>
 </svg>
