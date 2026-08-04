@@ -1,6 +1,6 @@
 /**
  * app.js - Standalone Self-Contained AI Face Recognition & Attendance Engine
- * Features Duplicate Name Prevention & Pre-registration for Un-scanned Members
+ * Features Dual Camera Zoom Engine (Hardware Optical + Digital CSS Scale 1.0x ~ 4.0x)
  * list.daliuren.cc
  */
 
@@ -229,6 +229,7 @@
   let scanIntervalId = null;
   let faceThreshold = 0.65;
   let cooldownMap = new Map();
+  let currentZoom = 1.0;
 
   function getTodayStr() {
     return new Date().toISOString().split('T')[0];
@@ -244,7 +245,40 @@
     }
   }
 
-  // --- 4. AI MODEL LOADING & MATCHER REBUILD ---
+  // --- 4. CAMERA ZOOM ENGINE (HARDWARE + DIGITAL SCALE) ---
+  function applyZoom(zoomLevel) {
+    currentZoom = parseFloat(zoomLevel);
+    if (isNaN(currentZoom)) currentZoom = 1.0;
+
+    const zoomSlider = $('zoom-slider');
+    const zoomLabel = $('zoom-value-label');
+    if (zoomSlider) zoomSlider.value = currentZoom;
+    if (zoomLabel) zoomLabel.textContent = `${currentZoom.toFixed(1)}x`;
+
+    // 1. Try Hardware Optical/Digital Camera Zoom via MediaTrackConstraints
+    if (activeStream) {
+      const videoTrack = activeStream.getVideoTracks()[0];
+      if (videoTrack && videoTrack.getCapabilities) {
+        const capabilities = videoTrack.getCapabilities();
+        if (capabilities.zoom) {
+          const minZ = capabilities.zoom.min || 1;
+          const maxZ = capabilities.zoom.max || 4;
+          const hwZoom = Math.min(Math.max(currentZoom, minZ), maxZ);
+          videoTrack.applyConstraints({ advanced: [{ zoom: hwZoom }] }).catch(() => {});
+        }
+      }
+    }
+
+    // 2. Apply Digital Scale Transform on Video Element
+    const video = $('main-video');
+    const canvas = $('face-canvas');
+    const transformStr = `scale(${currentZoom})`;
+
+    if (video) video.style.transform = transformStr;
+    if (canvas) canvas.style.transform = transformStr;
+  }
+
+  // --- 5. AI MODEL LOADING & MATCHER REBUILD ---
   async function loadAiModels() {
     updateAiStatus('載入 AI 離線模型權重中...', 'yellow');
     try {
@@ -299,7 +333,7 @@
     }
   }
 
-  // --- 5. RENDERERS ---
+  // --- 6. RENDERERS ---
   async function refreshData() {
     registeredMembers = await getAllMembersDB();
     todayAttendance = await getAttendanceByDateDB(getTodayStr());
@@ -436,7 +470,7 @@
     });
   }
 
-  // --- 6. CAMERA & REAL-TIME AI SCANNER ---
+  // --- 7. CAMERA & REAL-TIME AI SCANNER ---
   async function startCamera(facingMode = 'user') {
     try {
       stopCamera();
@@ -447,6 +481,7 @@
       if (video) {
         video.srcObject = activeStream;
         await video.play();
+        applyZoom(currentZoom);
         startAiFaceScanner();
       }
       return activeStream;
@@ -588,7 +623,7 @@
     }
   }
 
-  // --- 7. MEMBER REGISTRATION (PREVENT DUPLICATES & SUPPORT UN-SCANNED MEMBERS) ---
+  // --- 8. MEMBER REGISTRATION (PREVENT DUPLICATES & SUPPORT UN-SCANNED MEMBERS) ---
   async function registerMemberWithAi() {
     const nameInput = $('reg-name-input');
     const name = nameInput ? nameInput.value.trim() : '';
@@ -602,13 +637,11 @@
     const video = $('main-video');
     const statusMsg = $('reg-status-msg');
 
-    // Check duplicate name
     const existing = registeredMembers.find(m => m.name.trim().toLowerCase() === name.toLowerCase());
 
     let detection = null;
     let photoDataUrl = '';
 
-    // If camera is open and video is running, attempt face detection
     if (video && video.videoWidth > 0 && isAiModelLoaded) {
       if (statusMsg) statusMsg.textContent = '⏳ AI 正在掃描畫面並分析 128 維人臉特徵...';
       try {
@@ -623,9 +656,7 @@
     }
 
     if (existing) {
-      // Member already exists in database
       if (detection) {
-        // Camera scanned face -> Append feature vector to existing member
         if (!existing.descriptors) existing.descriptors = [];
         existing.descriptors.push(Array.from(detection.descriptor));
         if (photoDataUrl) existing.photoDataUrl = photoDataUrl;
@@ -635,14 +666,12 @@
         if (statusMsg) statusMsg.textContent = `✓ 已成功為「${existing.name}」追加第 ${existing.descriptors.length} 筆 AI 特徵碼！`;
         await refreshData();
       } else {
-        // No face scanned -> Block duplicate member creation
         alert(`⚠️ 團員「${existing.name}」已經在名冊中，無法重複註冊同名成員！\n\n如需追加該成員的 AI 特徵碼，請先開啟鏡頭並對準臉部後再次點擊「註冊」。`);
         if (statusMsg) statusMsg.textContent = `⚠️ 團員「${existing.name}」已存在，未重複建立。`;
       }
       return;
     }
 
-    // New member registration (works even without camera/scanning!)
     const newMember = {
       id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       name: name,
@@ -659,7 +688,7 @@
     if (statusMsg) {
       statusMsg.textContent = detection 
         ? `🎉 團員「${name}」AI 特徵註冊成功！`
-        : `✓ 已成功新增團員「${name}」（可於看板手動點擊打勾，或日後對準鏡頭補登特徵）`;
+        : `✓ 已成功新增團員「${name}」（可於看板手動點擊打勾，或日後對準鏡頭補登 AI 特徵）`;
     }
 
     await refreshData();
@@ -678,7 +707,7 @@
     return canvas.toDataURL('image/jpeg', 0.85);
   }
 
-  // --- 8. LOGS & CLIPBOARD ---
+  // --- 9. LOGS & CLIPBOARD ---
   async function generateLogsText() {
     const logs = await getAttendanceByDateDB(getTodayStr());
     const attendedMap = new Map();
@@ -736,7 +765,7 @@
     }
   }
 
-  // --- 9. EVENT BINDING & BOOTSTRAP ---
+  // --- 10. EVENT BINDING & BOOTSTRAP ---
   function bindEvents() {
     const btnToggleCamBox = $('btn-toggle-camera-box');
     const camBoxContent = $('camera-box-content');
@@ -757,6 +786,21 @@
         }
       });
     }
+
+    // Zoom Slider & Preset Buttons
+    const zoomSlider = $('zoom-slider');
+    if (zoomSlider) {
+      zoomSlider.addEventListener('input', (e) => {
+        applyZoom(e.target.value);
+      });
+    }
+
+    document.querySelectorAll('.btn-zoom-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const zoomVal = btn.dataset.zoom;
+        if (zoomVal) applyZoom(zoomVal);
+      });
+    });
 
     const btnOpenCam = $('btn-open-camera');
     const btnSwitchCam = $('btn-switch-camera');
@@ -938,7 +982,7 @@
     });
   }
 
-  // --- 10. BOOTSTRAP ---
+  // --- 11. BOOTSTRAP ---
   function boot() {
     bindEvents();
     refreshData();

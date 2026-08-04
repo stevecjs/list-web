@@ -59,8 +59,8 @@
       <div id="camera-box-content" class="space-y-3">
         <!-- Camera Preview Box with Face Overlay Canvas -->
         <div class="camera-container rounded-2xl overflow-hidden aspect-video relative bg-black border border-slate-800">
-          <video id="main-video" class="camera-video w-full h-full object-cover" autoplay playsinline muted></video>
-          <canvas id="face-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none z-10"></canvas>
+          <video id="main-video" class="camera-video w-full h-full object-cover transition-transform duration-100" autoplay playsinline muted></video>
+          <canvas id="face-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none z-10 transition-transform duration-100"></canvas>
           <div class="scan-line"></div>
 
           <!-- Success Animation Overlay -->
@@ -69,6 +69,21 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
             </svg>
             <div class="text-xs font-extrabold"><span id="match-success-name">--</span> 點名成功！</div>
+          </div>
+        </div>
+
+        <!-- Camera Zoom Control Bar (Hardware + Digital Zoom Engine) -->
+        <div id="camera-zoom-bar" class="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 flex items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2 flex-1">
+            <span class="text-sky-300 font-extrabold whitespace-nowrap">🔍 遠距縮放:</span>
+            <input type="range" id="zoom-slider" min="1.0" max="4.0" step="0.1" value="1.0" class="flex-1 accent-sky-400" />
+            <span id="zoom-value-label" class="text-sky-300 font-mono font-extrabold w-9 text-right">1.0x</span>
+          </div>
+          <div class="flex gap-1">
+            <button data-zoom="1.0" class="btn-zoom-preset px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-[11px] border border-slate-700">1x</button>
+            <button data-zoom="1.5" class="btn-zoom-preset px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-[11px] border border-slate-700">1.5x</button>
+            <button data-zoom="2.0" class="btn-zoom-preset px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-[11px] border border-slate-700">2x</button>
+            <button data-zoom="3.0" class="btn-zoom-preset px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-[11px] border border-slate-700">3x</button>
           </div>
         </div>
 
