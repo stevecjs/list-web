@@ -1,6 +1,6 @@
 /**
  * app.js - Main Application Logic
- * Offline Face Recognition Attendance System with Instant Boot
+ * Ultra-robust DOM binding & Global Diagnostic Logger for Offline Face Recognition Attendance
  * list.daliuren.cc
  */
 
@@ -18,6 +18,25 @@ import {
 } from './db.js';
 
 import { initAudio, playBeepSound, playErrorSound } from './sound.js';
+
+// Global Diagnostic Logger - Catches any runtime error on-screen immediately
+window.onerror = function(msg, url, line) {
+  showGlobalError(`語法/執行錯誤: ${msg} (第 ${line} 行)`);
+};
+
+window.onunhandledrejection = function(event) {
+  showGlobalError(`非同步異常: ${event.reason}`);
+};
+
+function showGlobalError(msg) {
+  console.error('[GlobalError]', msg);
+  const banner = document.getElementById('global-error-banner');
+  const textEl = document.getElementById('global-error-msg');
+  if (banner && textEl) {
+    textEl.textContent = msg;
+    banner.classList.remove('hidden');
+  }
+}
 
 // Configuration & State
 const CONFIG = {
@@ -49,82 +68,18 @@ let cooldownMap = new Map();
 let selectedMemberIds = new Set();
 let activeFilterMode = 'ALL';
 
-// DOM Elements
-const elements = {
-  // Navigation
-  tabButtons: document.querySelectorAll('.nav-tab'),
-  tabContents: document.querySelectorAll('.tab-content'),
-  
-  // Header & Status
-  statusDot: document.getElementById('status-dot'),
-  statusText: document.getElementById('status-text'),
-  dateDisplay: document.getElementById('date-display'),
-  diagModelStatus: document.getElementById('diag-model-status'),
+// Safe DOM Selectors
+const $ = (id) => document.getElementById(id);
+const $$ = (selector) => document.querySelectorAll(selector);
 
-  // PWA Update Buttons
-  updatePwaBtn: document.getElementById('btn-update-pwa'),
-  updatePwaSettingsBtn: document.getElementById('btn-update-pwa-settings'),
-
-  // Progress Bar
-  progressContainer: document.getElementById('init-progress-container'),
-  progressStatus: document.getElementById('init-progress-status'),
-  progressPercent: document.getElementById('init-progress-percent'),
-  progressBar: document.getElementById('init-progress-bar'),
-
-  // Scan View
-  scanVideo: document.getElementById('scan-video'),
-  scanCanvas: document.getElementById('scan-canvas'),
-  startScanBtn: document.getElementById('btn-start-scan'),
-  switchCameraBtn: document.getElementById('btn-switch-camera'),
-  scanSuccessBanner: document.getElementById('scan-success-banner'),
-  bannerName: document.getElementById('banner-name'),
-  bannerTime: document.getElementById('banner-time'),
-  presentCount: document.getElementById('present-count'),
-  totalCount: document.getElementById('total-count'),
-  boardMemberList: document.getElementById('board-member-list'),
-  clearBoardBtn: document.getElementById('btn-clear-board'),
-  filterAllBtn: document.getElementById('btn-filter-all'),
-  filterSelectedOnlyBtn: document.getElementById('btn-filter-selected-only'),
-  selectedTargetCount: document.getElementById('selected-target-count'),
-  openTargetSelectorBtn: document.getElementById('btn-open-target-selector'),
-
-  // Debug Stats
-  dbgMemberCount: document.getElementById('dbg-member-count'),
-  dbgVectorCount: document.getElementById('dbg-vector-count'),
-  dbgThreshold: document.getElementById('dbg-threshold'),
-
-  // Modal
-  targetModal: document.getElementById('target-selector-modal'),
-  closeModalBtn: document.getElementById('btn-close-modal'),
-  selectAllBtn: document.getElementById('btn-select-all'),
-  deselectAllBtn: document.getElementById('btn-deselect-all'),
-  modalCheckedCount: document.getElementById('modal-checked-count'),
-  modalMemberChecklist: document.getElementById('modal-member-checklist'),
-  saveTargetSelectionBtn: document.getElementById('btn-save-target-selection'),
-
-  // Register View
-  regNameInput: document.getElementById('reg-name-input'),
-  regVideo: document.getElementById('reg-video'),
-  regCanvas: document.getElementById('reg-canvas'),
-  startRegCameraBtn: document.getElementById('btn-start-reg-camera'),
-  switchRegCameraBtn: document.getElementById('btn-switch-reg-camera'),
-  regActionButtons: document.getElementById('reg-action-buttons'),
-  captureFaceBtn: document.getElementById('btn-capture-face'),
-  capturePhotoDirectBtn: document.getElementById('btn-capture-photo-direct'),
-  resetRegFormBtn: document.getElementById('btn-reset-reg-form'),
-  regStatusMsg: document.getElementById('reg-status-msg'),
-  registeredMemberList: document.getElementById('registered-member-list'),
-
-  // Logs View
-  logDateInput: document.getElementById('log-date-input'),
-  copyClipboardBtn: document.getElementById('btn-copy-clipboard'),
-  logPreviewText: document.getElementById('log-preview-text'),
-
-  // Settings View
-  clearDataBtn: document.getElementById('btn-clear-data'),
-  thresholdInput: document.getElementById('threshold-input'),
-  thresholdValue: document.getElementById('threshold-value')
-};
+function safeBind(idOrEl, event, handler) {
+  const el = typeof idOrEl === 'string' ? $(idOrEl) : idOrEl;
+  if (el) {
+    el.addEventListener(event, handler);
+  } else {
+    console.warn(`[DOM] Element #${idOrEl} not found for event binding.`);
+  }
+}
 
 // Force Update PWA Helper
 async function forceUpdatePWA() {
@@ -149,28 +104,17 @@ async function forceUpdatePWA() {
   }
 }
 
-// Update Visual Progress Bar
-function updateInitProgress(percent, statusText) {
-  if (elements.progressBar) {
-    elements.progressBar.style.width = `${percent}%`;
-  }
-  if (elements.progressPercent) {
-    elements.progressPercent.textContent = `${percent}%`;
-  }
-  if (elements.progressStatus) {
-    elements.progressStatus.innerHTML = percent < 100
-      ? `<span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span> ${statusText}`
-      : `<span class="text-emerald-400 font-bold">✓ ${statusText}</span>`;
-  }
-  if (elements.statusText) {
-    elements.statusText.textContent = percent < 100 ? `載入中 ${percent}%` : '系統就緒';
-  }
-  if (elements.statusDot) {
-    elements.statusDot.className = `w-2.5 h-2.5 rounded-full ${percent < 100 ? 'bg-yellow-500' : 'bg-green-500'}`;
+function updateStatus(text, color = 'green') {
+  const textEl = $('status-text');
+  const dotEl = $('status-dot');
+  if (textEl) textEl.textContent = text;
+  if (dotEl) {
+    const colorMap = { green: 'bg-green-500', yellow: 'bg-yellow-500', red: 'bg-red-500' };
+    dotEl.className = `w-2.5 h-2.5 rounded-full ${colorMap[color] || 'bg-gray-400'}`;
   }
 }
 
-// Instant Boot Application
+// Application Bootstrapper - Guarantees event listener binding
 function bootApp() {
   try {
     setupTabs();
@@ -179,19 +123,19 @@ function bootApp() {
     setInterval(updateClock, 1000);
 
     const todayStr = getTodayDateStr();
-    if (elements.logDateInput) elements.logDateInput.value = todayStr;
+    const logDateInput = $('log-date-input');
+    if (logDateInput) logDateInput.value = todayStr;
 
     registerServiceWorker();
 
-    updateInitProgress(100, '系統就緒');
+    updateStatus('系統已就緒', 'green');
 
     refreshMembersAndMatcher().catch(e => console.warn('Refresh members warning:', e));
     refreshTodayAttendance().catch(e => console.warn('Refresh attendance warning:', e));
     loadFaceModels().catch(e => console.warn('Model load warning:', e));
 
   } catch (err) {
-    console.error('App boot error:', err);
-    updateInitProgress(100, '系統就緒');
+    showGlobalError(`啟動異常: ${err.message}`);
   }
 }
 
@@ -210,11 +154,12 @@ function registerServiceWorker() {
 }
 
 async function loadFaceModels() {
-  if (elements.diagModelStatus) elements.diagModelStatus.textContent = '下載/快取載入中...';
+  const diagStatus = $('diag-model-status');
+  if (diagStatus) diagStatus.textContent = '下載/快取載入中...';
 
   try {
     if (typeof faceapi === 'undefined') {
-      throw new Error('face-api.js Script 尚未載入');
+      throw new Error('face-api.js 離線腳本尚未載入');
     }
 
     await faceapi.nets.tinyFaceDetector.loadFromUri(CONFIG.MODEL_URL);
@@ -222,12 +167,12 @@ async function loadFaceModels() {
     await faceapi.nets.faceRecognitionNet.loadFromUri(CONFIG.MODEL_URL);
 
     isModelLoaded = true;
-    updateInitProgress(100, 'AI 人臉辨識與點名引擎已完全就緒！');
-    if (elements.diagModelStatus) elements.diagModelStatus.textContent = '✓ tinyFaceDetector 離線成功';
+    updateStatus('AI 人臉辨識與點名引擎就緒', 'green');
+    if (diagStatus) diagStatus.textContent = '✓ tinyFaceDetector 離線成功';
   } catch (err) {
     console.warn('Face models load warning:', err);
-    updateInitProgress(100, '相片註冊與手動點名模式已就緒');
-    if (elements.diagModelStatus) elements.diagModelStatus.textContent = '⚠️ 離線 AI 模型載入中 (相片註冊與手動點名模式可直接使用)';
+    updateStatus('相片註冊與手動點名就緒', 'green');
+    if (diagStatus) diagStatus.textContent = '⚠️ 離線 AI 模型載入中 (相片註冊與手動點名可直接使用)';
   }
 }
 
@@ -237,14 +182,16 @@ function getTodayDateStr() {
 }
 
 function updateClock() {
-  if (!elements.dateDisplay) return;
+  const dateDisplay = $('date-display');
+  if (!dateDisplay) return;
   const now = new Date();
-  elements.dateDisplay.textContent = `${now.toLocaleDateString('zh-TW')} ${now.toLocaleTimeString('zh-TW')}`;
+  dateDisplay.textContent = `${now.toLocaleDateString('zh-TW')} ${now.toLocaleTimeString('zh-TW')}`;
 }
 
 // Tab Switching
 function setupTabs() {
-  elements.tabButtons.forEach(btn => {
+  const tabButtons = $$('.nav-tab');
+  tabButtons.forEach(btn => {
     btn.addEventListener('click', async () => {
       initAudio();
       const targetTab = btn.dataset.tab;
@@ -255,7 +202,10 @@ function setupTabs() {
 
 async function switchTab(tabName) {
   currentTab = tabName;
-  elements.tabButtons.forEach(btn => {
+  const tabButtons = $$('.nav-tab');
+  const tabContents = $$('.tab-content');
+
+  tabButtons.forEach(btn => {
     if (btn.dataset.tab === tabName) {
       btn.classList.add('nav-tab-active', 'text-sky-400');
       btn.classList.remove('text-gray-400');
@@ -265,7 +215,7 @@ async function switchTab(tabName) {
     }
   });
 
-  elements.tabContents.forEach(content => {
+  tabContents.forEach(content => {
     content.classList.toggle('hidden', content.id !== `tab-${tabName}`);
   });
 
@@ -329,17 +279,24 @@ function stopAllCameras() {
     regStream = null;
   }
 
-  if (elements.scanVideo) elements.scanVideo.srcObject = null;
-  if (elements.regVideo) elements.regVideo.srcObject = null;
+  const scanVideo = $('scan-video');
+  const regVideo = $('reg-video');
+  if (scanVideo) scanVideo.srcObject = null;
+  if (regVideo) regVideo.srcObject = null;
 }
 
 // Refresh Members & Build FaceMatcher
 async function refreshMembersAndMatcher() {
   registeredMembers = await getAllMembers();
+  const dbgMemberCount = $('dbg-member-count');
+  const dbgVectorCount = $('dbg-vector-count');
+  const dbgThreshold = $('dbg-threshold');
+  const selectedTargetCount = $('selected-target-count');
+
   if (registeredMembers.length === 0) {
     faceMatcher = null;
-    if (elements.dbgMemberCount) elements.dbgMemberCount.textContent = '0';
-    if (elements.dbgVectorCount) elements.dbgVectorCount.textContent = '0';
+    if (dbgMemberCount) dbgMemberCount.textContent = '0';
+    if (dbgVectorCount) dbgVectorCount.textContent = '0';
     return;
   }
 
@@ -363,9 +320,9 @@ async function refreshMembersAndMatcher() {
     }
   });
 
-  if (elements.dbgMemberCount) elements.dbgMemberCount.textContent = registeredMembers.length;
-  if (elements.dbgVectorCount) elements.dbgVectorCount.textContent = totalVectors;
-  if (elements.dbgThreshold) elements.dbgThreshold.textContent = CONFIG.FACE_DISTANCE_THRESHOLD.toFixed(2);
+  if (dbgMemberCount) dbgMemberCount.textContent = registeredMembers.length;
+  if (dbgVectorCount) dbgVectorCount.textContent = totalVectors;
+  if (dbgThreshold) dbgThreshold.textContent = CONFIG.FACE_DISTANCE_THRESHOLD.toFixed(2);
 
   if (labeledDescriptors.length > 0) {
     faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, CONFIG.FACE_DISTANCE_THRESHOLD);
@@ -376,7 +333,7 @@ async function refreshMembersAndMatcher() {
   if (selectedMemberIds.size === 0) {
     registeredMembers.forEach(m => selectedMemberIds.add(m.id));
   }
-  if (elements.selectedTargetCount) elements.selectedTargetCount.textContent = selectedMemberIds.size;
+  if (selectedTargetCount) selectedTargetCount.textContent = selectedMemberIds.size;
 }
 
 // Refresh Attendance & Update Board UI
@@ -387,7 +344,10 @@ async function refreshTodayAttendance() {
 }
 
 function renderBoardMemberList() {
-  const container = elements.boardMemberList;
+  const container = $('board-member-list');
+  const presentCountEl = $('present-count');
+  const totalCountEl = $('total-count');
+
   if (!container) return;
 
   const targetMembers = activeFilterMode === 'SELECTED'
@@ -398,8 +358,8 @@ function renderBoardMemberList() {
   todayAttendance.forEach(a => attendedSet.set(a.memberId, a));
 
   const presentCount = targetMembers.filter(m => attendedSet.has(m.id)).length;
-  elements.presentCount.textContent = presentCount;
-  elements.totalCount.textContent = targetMembers.length;
+  if (presentCountEl) presentCountEl.textContent = presentCount;
+  if (totalCountEl) totalCountEl.textContent = targetMembers.length;
 
   if (targetMembers.length === 0) {
     container.innerHTML = `
@@ -463,38 +423,40 @@ function renderBoardMemberList() {
 async function startAttendanceScan() {
   initAudio();
 
-  scanStream = await startCamera(elements.scanVideo, scanFacingMode);
+  const scanVideo = $('scan-video');
+  const scanCanvas = $('scan-canvas');
+  const startBtn = $('btn-start-scan');
+  const switchBtn = $('btn-switch-camera');
+
+  scanStream = await startCamera(scanVideo, scanFacingMode);
   if (!scanStream) return;
 
   isScanning = true;
-  elements.startScanBtn.classList.add('hidden');
-  elements.switchCameraBtn.classList.remove('hidden');
-
-  const video = elements.scanVideo;
-  const canvas = elements.scanCanvas;
+  if (startBtn) startBtn.classList.add('hidden');
+  if (switchBtn) switchBtn.classList.remove('hidden');
 
   scanIntervalId = setInterval(async () => {
-    if (!isScanning || !video || video.paused || video.ended || video.videoWidth === 0) return;
+    if (!isScanning || !scanVideo || scanVideo.paused || scanVideo.ended || scanVideo.videoWidth === 0) return;
 
-    if (canvas.width !== video.videoWidth) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+    if (scanCanvas.width !== scanVideo.videoWidth) {
+      scanCanvas.width = scanVideo.videoWidth;
+      scanCanvas.height = scanVideo.videoHeight;
     }
 
     if (!isModelLoaded || !faceMatcher) return;
 
     try {
       const options = new faceapi.TinyFaceOptions({ inputSize: 224, scoreThreshold: 0.35 });
-      const detections = await faceapi.detectAllFaces(video, options)
+      const detections = await faceapi.detectAllFaces(scanVideo, options)
         .withFaceLandmarks(true)
         .withFaceDescriptors();
 
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const ctx = scanCanvas.getContext('2d');
+      ctx.clearRect(0, 0, scanCanvas.width, scanCanvas.height);
 
       if (detections.length === 0) return;
 
-      const resizedDetections = faceapi.resizeResults(detections, { width: canvas.width, height: canvas.height });
+      const resizedDetections = faceapi.resizeResults(detections, { width: scanCanvas.width, height: scanCanvas.height });
 
       for (const detection of resizedDetections) {
         const box = detection.detection.box;
@@ -554,34 +516,46 @@ async function startAttendanceScan() {
 }
 
 function showSuccessBanner(name, timeStr) {
-  elements.bannerName.textContent = name;
-  elements.bannerTime.textContent = timeStr;
-  elements.scanSuccessBanner.classList.remove('hidden');
+  const bannerName = $('banner-name');
+  const bannerTime = $('banner-time');
+  const banner = $('scan-success-banner');
+
+  if (bannerName) bannerName.textContent = name;
+  if (bannerTime) bannerTime.textContent = timeStr;
+  if (banner) banner.classList.remove('hidden');
 
   setTimeout(() => {
-    elements.scanSuccessBanner.classList.add('hidden');
+    if (banner) banner.classList.add('hidden');
   }, 2200);
 }
 
 // MEMBER REGISTRATION MODULE WITH DUAL FALLBACK
 async function startRegistrationCamera() {
   initAudio();
-  regStream = await startCamera(elements.regVideo, regFacingMode);
+  const regVideo = $('reg-video');
+  const startBtn = $('btn-start-reg-camera');
+  const switchBtn = $('btn-switch-reg-camera');
+  const actionBtns = $('reg-action-buttons');
+  const msgEl = $('reg-status-msg');
+
+  regStream = await startCamera(regVideo, regFacingMode);
   if (regStream) {
     isRegistering = true;
-    elements.startRegCameraBtn.classList.add('hidden');
-    elements.switchRegCameraBtn.classList.remove('hidden');
-    elements.regActionButtons.classList.remove('hidden');
-    elements.regStatusMsg.textContent = '📷 相機已啟動！可選「🤖 AI特徵擷取」或「📷 拍照直接註冊」';
-    elements.regStatusMsg.className = 'text-xs text-sky-300 font-semibold text-center min-h-[20px]';
+    if (startBtn) startBtn.classList.add('hidden');
+    if (switchBtn) switchBtn.classList.remove('hidden');
+    if (actionBtns) actionBtns.classList.remove('hidden');
+    if (msgEl) {
+      msgEl.textContent = '📷 相機已啟動！可選「🤖 AI特徵擷取」或「📷 拍照直接註冊」';
+      msgEl.className = 'text-xs text-sky-300 font-semibold text-center min-h-[20px]';
+    }
 
     startRegistrationLivePreview();
   }
 }
 
 function startRegistrationLivePreview() {
-  const video = elements.regVideo;
-  const canvas = elements.regCanvas;
+  const video = $('reg-video');
+  const canvas = $('reg-canvas');
 
   if (regIntervalId) clearInterval(regIntervalId);
 
@@ -614,8 +588,11 @@ function startRegistrationLivePreview() {
         ctx.font = 'bold 12px sans-serif';
         ctx.fillText('✓ 已瞄準臉部', box.x + 6, box.y - 7);
 
-        elements.regStatusMsg.textContent = '🟢 已瞄準人臉，請點擊「🤖 AI人臉特徵擷取」！';
-        elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px] animate-pulse';
+        const msgEl = $('reg-status-msg');
+        if (msgEl) {
+          msgEl.textContent = '🟢 已瞄準人臉，請點擊「🤖 AI人臉特徵擷取」！';
+          msgEl.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px] animate-pulse';
+        }
       }
     } catch (err) {
       // Ignore preview errors
@@ -625,31 +602,43 @@ function startRegistrationLivePreview() {
 
 function resetRegistrationForm() {
   stopAllCameras();
-  elements.regNameInput.value = '';
-  elements.regStatusMsg.textContent = '請點擊開啟相機並對準臉部';
-  elements.regStatusMsg.className = 'text-xs text-slate-300 text-center min-h-[20px]';
-  elements.startRegCameraBtn.classList.remove('hidden');
-  elements.switchRegCameraBtn.classList.add('hidden');
-  elements.regActionButtons.classList.add('hidden');
+  const nameInput = $('reg-name-input');
+  const msgEl = $('reg-status-msg');
+  const startBtn = $('btn-start-reg-camera');
+  const switchBtn = $('btn-switch-reg-camera');
+  const actionBtns = $('reg-action-buttons');
+
+  if (nameInput) nameInput.value = '';
+  if (msgEl) {
+    msgEl.textContent = '請點擊開啟相機並對準臉部';
+    msgEl.className = 'text-xs text-slate-300 text-center min-h-[20px]';
+  }
+  if (startBtn) startBtn.classList.remove('hidden');
+  if (switchBtn) switchBtn.classList.add('hidden');
+  if (actionBtns) actionBtns.classList.add('hidden');
 }
 
 async function captureAndRegisterFace() {
-  const name = elements.regNameInput.value.trim();
+  const nameInput = $('reg-name-input');
+  const name = nameInput ? nameInput.value.trim() : '';
 
   if (!name) {
     alert('請先輸入團員姓名');
-    elements.regNameInput.focus();
+    if (nameInput) nameInput.focus();
     return;
   }
 
-  const video = elements.regVideo;
+  const video = $('reg-video');
+  const captureBtn = $('btn-capture-face');
+  const msgEl = $('reg-status-msg');
+
   if (!video || video.videoWidth === 0) {
     alert('相機尚未準備就緒，請重新點擊開啟註冊相機。');
     return;
   }
 
-  elements.captureFaceBtn.disabled = true;
-  elements.regStatusMsg.textContent = '⏳ AI 特徵比對計算中...';
+  if (captureBtn) captureBtn.disabled = true;
+  if (msgEl) msgEl.textContent = '⏳ AI 特徵比對計算中...';
 
   try {
     let detection = null;
@@ -667,11 +656,11 @@ async function captureAndRegisterFace() {
     if (!detection) {
       if (confirm(`🤖 AI 未能辨識出精確特徵。\n\n是否直接以「📷 拍照方式」完成「${name}」的成員註冊？(可正常顯示於看板並點名紀錄)`)) {
         await capturePhotoDirectRegister();
-      } else {
-        elements.regStatusMsg.textContent = '💡 提示：可調整光線、靠近鏡頭，或直接使用「📷 拍照直接註冊」。';
-        elements.regStatusMsg.className = 'text-xs text-amber-300 font-bold text-center min-h-[20px]';
+      } else if (msgEl) {
+        msgEl.textContent = '💡 提示：可調整光線、靠近鏡頭，或直接使用「📷 拍照直接註冊」。';
+        msgEl.className = 'text-xs text-amber-300 font-bold text-center min-h-[20px]';
       }
-      elements.captureFaceBtn.disabled = false;
+      if (captureBtn) captureBtn.disabled = false;
       return;
     }
 
@@ -685,12 +674,14 @@ async function captureAndRegisterFace() {
 
     playBeepSound();
 
-    if (result.isNew) {
-      elements.regStatusMsg.textContent = `🎉 團員「${name}」註冊成功！可再微轉角度追加特徵！`;
-    } else {
-      elements.regStatusMsg.textContent = `✓ 已為「${name}」成功追加第 ${result.count} 筆特徵碼！`;
+    if (msgEl) {
+      if (result.isNew) {
+        msgEl.textContent = `🎉 團員「${name}」註冊成功！可再微轉角度追加特徵！`;
+      } else {
+        msgEl.textContent = `✓ 已為「${name}」成功追加第 ${result.count} 筆特徵碼！`;
+      }
+      msgEl.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px]';
     }
-    elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px]';
 
     await refreshMembersAndMatcher();
     renderRegisteredMemberList();
@@ -699,20 +690,21 @@ async function captureAndRegisterFace() {
     console.error('Face capture error:', err);
     await capturePhotoDirectRegister();
   } finally {
-    elements.captureFaceBtn.disabled = false;
+    if (captureBtn) captureBtn.disabled = false;
   }
 }
 
 async function capturePhotoDirectRegister() {
-  const name = elements.regNameInput.value.trim();
+  const nameInput = $('reg-name-input');
+  const name = nameInput ? nameInput.value.trim() : '';
 
   if (!name) {
     alert('請先輸入團員姓名');
-    elements.regNameInput.focus();
+    if (nameInput) nameInput.focus();
     return;
   }
 
-  const video = elements.regVideo;
+  const video = $('reg-video');
   const photoDataUrl = captureVideoSnapshot(video);
   const dummyDescriptor = new Array(128).fill(0);
 
@@ -724,8 +716,11 @@ async function capturePhotoDirectRegister() {
 
   playBeepSound();
 
-  elements.regStatusMsg.textContent = `✓ 已完成「${name}」拍照註冊！(可正常於看板點名)`;
-  elements.regStatusMsg.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px]';
+  const msgEl = $('reg-status-msg');
+  if (msgEl) {
+    msgEl.textContent = `✓ 已完成「${name}」拍照註冊！(可正常於看板點名)`;
+    msgEl.className = 'text-xs text-emerald-400 font-bold text-center min-h-[20px]';
+  }
 
   await refreshMembersAndMatcher();
   renderRegisteredMemberList();
@@ -736,8 +731,8 @@ function captureVideoSnapshot(video) {
   canvas.width = 160;
   canvas.height = 160;
   const ctx = canvas.getContext('2d');
-  const width = video.videoWidth || 320;
-  const height = video.videoHeight || 240;
+  const width = (video && video.videoWidth) || 320;
+  const height = (video && video.videoHeight) || 240;
   const minDim = Math.min(width, height);
   const sx = (width - minDim) / 2;
   const sy = (height - minDim) / 2;
@@ -746,7 +741,7 @@ function captureVideoSnapshot(video) {
 }
 
 function renderRegisteredMemberList() {
-  const container = elements.registeredMemberList;
+  const container = $('registered-member-list');
   if (!container) return;
 
   if (registeredMembers.length === 0) {
@@ -794,15 +789,19 @@ function renderRegisteredMemberList() {
   container.querySelectorAll('.btn-append-feature').forEach(btn => {
     btn.addEventListener('click', async () => {
       const name = btn.dataset.appendName;
-      elements.regNameInput.value = name;
+      const nameInput = $('reg-name-input');
+      if (nameInput) nameInput.value = name;
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
       if (!isRegistering) {
         await startRegistrationCamera();
       }
 
-      elements.regStatusMsg.textContent = `請將「${name}」稍微轉動微角度 (正臉/側臉/戴眼鏡/笑臉) 並點擊擷取特徵！`;
-      elements.regStatusMsg.className = 'text-xs text-sky-300 font-bold text-center min-h-[20px]';
+      const msgEl = $('reg-status-msg');
+      if (msgEl) {
+        msgEl.textContent = `請將「${name}」稍微轉動微角度 (正臉/側臉/戴眼鏡/笑臉) 並點擊擷取特徵！`;
+        msgEl.className = 'text-xs text-sky-300 font-bold text-center min-h-[20px]';
+      }
     });
   });
 
@@ -823,7 +822,7 @@ function renderRegisteredMemberList() {
 
 // TARGET SELECTOR MODAL DRAWER
 function renderTargetSelectorModal() {
-  const container = elements.modalMemberChecklist;
+  const container = $('modal-member-checklist');
   if (!container) return;
 
   if (registeredMembers.length === 0) {
@@ -859,14 +858,14 @@ function renderTargetSelectorModal() {
 }
 
 function updateModalCheckedCount() {
-  if (elements.modalCheckedCount) {
-    elements.modalCheckedCount.textContent = selectedMemberIds.size;
-  }
+  const countEl = $('modal-checked-count');
+  if (countEl) countEl.textContent = selectedMemberIds.size;
 }
 
 // LOGS & CLIPBOARD COPY MODULE
 async function renderLogsPreview() {
-  const dateStr = elements.logDateInput.value || getTodayDateStr();
+  const logDateInput = $('log-date-input');
+  const dateStr = (logDateInput && logDateInput.value) || getTodayDateStr();
   const logs = await getAttendanceByDate(dateStr);
   const attendedMap = new Map();
   logs.forEach(l => attendedMap.set(l.memberId, l));
@@ -910,21 +909,21 @@ async function renderLogsPreview() {
   text += `----------------------------------------\n`;
   text += `紀錄產生時間：${now.toLocaleString('zh-TW')}\n`;
 
-  if (elements.logPreviewText) {
-    elements.logPreviewText.value = text;
-  }
+  const previewBox = $('log-preview-text');
+  if (previewBox) previewBox.value = text;
 
   return text;
 }
 
 async function copyLogsToClipboard() {
   const text = await renderLogsPreview();
+  const previewBox = $('log-preview-text');
 
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(text);
-    } else {
-      elements.logPreviewText.select();
+    } else if (previewBox) {
+      previewBox.select();
       document.execCommand('copy');
     }
     playBeepSound();
@@ -937,19 +936,19 @@ async function copyLogsToClipboard() {
 
 // SETTINGS & EVENT LISTENERS
 function setupEventListeners() {
-  // PWA Update Buttons
-  if (elements.updatePwaBtn) elements.updatePwaBtn.addEventListener('click', forceUpdatePWA);
-  if (elements.updatePwaSettingsBtn) elements.updatePwaSettingsBtn.addEventListener('click', forceUpdatePWA);
+  // PWA Force Update Buttons
+  safeBind('btn-update-pwa', 'click', forceUpdatePWA);
+  safeBind('btn-update-pwa-settings', 'click', forceUpdatePWA);
 
   // Scan tab buttons
-  elements.startScanBtn.addEventListener('click', startAttendanceScan);
-  elements.switchCameraBtn.addEventListener('click', async () => {
+  safeBind('btn-start-scan', 'click', startAttendanceScan);
+  safeBind('btn-switch-camera', 'click', async () => {
     scanFacingMode = scanFacingMode === 'user' ? 'environment' : 'user';
     await startAttendanceScan();
   });
 
   // One-click Clear Attendance Board Button
-  elements.clearBoardBtn.addEventListener('click', async () => {
+  safeBind('btn-clear-board', 'click', async () => {
     if (confirm('🧹 確定要一鍵清空今日/本次點名看板嗎？\n所有團員將恢復為「未出席」狀態。')) {
       await clearTodayAttendance(getTodayDateStr());
       playBeepSound();
@@ -958,62 +957,70 @@ function setupEventListeners() {
   });
 
   // Dynamic filter buttons
-  elements.filterAllBtn.addEventListener('click', () => {
+  safeBind('btn-filter-all', 'click', () => {
     activeFilterMode = 'ALL';
-    elements.filterAllBtn.className = 'px-2.5 py-1 rounded-lg bg-sky-500 text-white font-bold';
-    elements.filterSelectedOnlyBtn.className = 'px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-medium hover:text-white';
+    const filterAllBtn = $('btn-filter-all');
+    const filterSelectedBtn = $('btn-filter-selected-only');
+    if (filterAllBtn) filterAllBtn.className = 'px-2.5 py-1 rounded-lg bg-sky-500 text-white font-bold';
+    if (filterSelectedBtn) filterSelectedBtn.className = 'px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-medium hover:text-white';
     renderBoardMemberList();
   });
 
-  elements.filterSelectedOnlyBtn.addEventListener('click', () => {
+  safeBind('btn-filter-selected-only', 'click', () => {
     activeFilterMode = 'SELECTED';
-    elements.filterSelectedOnlyBtn.className = 'px-2.5 py-1 rounded-lg bg-sky-500 text-white font-bold';
-    elements.filterAllBtn.className = 'px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-medium hover:text-white';
+    const filterAllBtn = $('btn-filter-all');
+    const filterSelectedBtn = $('btn-filter-selected-only');
+    if (filterSelectedBtn) filterSelectedBtn.className = 'px-2.5 py-1 rounded-lg bg-sky-500 text-white font-bold';
+    if (filterAllBtn) filterAllBtn.className = 'px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-medium hover:text-white';
     renderBoardMemberList();
   });
 
   // Modal open / close
-  elements.openTargetSelectorBtn.addEventListener('click', () => {
+  safeBind('btn-open-target-selector', 'click', () => {
     renderTargetSelectorModal();
-    elements.targetModal.classList.remove('hidden');
+    const modal = $('target-selector-modal');
+    if (modal) modal.classList.remove('hidden');
   });
 
-  elements.closeModalBtn.addEventListener('click', () => {
-    elements.targetModal.classList.add('hidden');
+  safeBind('btn-close-modal', 'click', () => {
+    const modal = $('target-selector-modal');
+    if (modal) modal.classList.add('hidden');
   });
 
-  elements.selectAllBtn.addEventListener('click', () => {
+  safeBind('btn-select-all', 'click', () => {
     registeredMembers.forEach(m => selectedMemberIds.add(m.id));
     renderTargetSelectorModal();
   });
 
-  elements.deselectAllBtn.addEventListener('click', () => {
+  safeBind('btn-deselect-all', 'click', () => {
     selectedMemberIds.clear();
     renderTargetSelectorModal();
   });
 
-  elements.saveTargetSelectionBtn.addEventListener('click', () => {
-    elements.targetModal.classList.add('hidden');
-    if (elements.selectedTargetCount) elements.selectedTargetCount.textContent = selectedMemberIds.size;
+  safeBind('btn-save-target-selection', 'click', () => {
+    const modal = $('target-selector-modal');
+    const targetCountEl = $('selected-target-count');
+    if (modal) modal.classList.add('hidden');
+    if (targetCountEl) targetCountEl.textContent = selectedMemberIds.size;
     renderBoardMemberList();
   });
 
   // Register tab buttons
-  elements.startRegCameraBtn.addEventListener('click', startRegistrationCamera);
-  elements.switchRegCameraBtn.addEventListener('click', async () => {
+  safeBind('btn-start-reg-camera', 'click', startRegistrationCamera);
+  safeBind('btn-switch-reg-camera', 'click', async () => {
     regFacingMode = regFacingMode === 'user' ? 'environment' : 'user';
     await startRegistrationCamera();
   });
-  elements.captureFaceBtn.addEventListener('click', captureAndRegisterFace);
-  elements.capturePhotoDirectBtn.addEventListener('click', capturePhotoDirectRegister);
-  elements.resetRegFormBtn.addEventListener('click', resetRegistrationForm);
+  safeBind('btn-capture-face', 'click', captureAndRegisterFace);
+  safeBind('btn-capture-photo-direct', 'click', capturePhotoDirectRegister);
+  safeBind('btn-reset-reg-form', 'click', resetRegistrationForm);
 
   // Logs tab
-  elements.logDateInput.addEventListener('change', renderLogsPreview);
-  elements.copyClipboardBtn.addEventListener('click', copyLogsToClipboard);
+  safeBind('log-date-input', 'change', renderLogsPreview);
+  safeBind('btn-copy-clipboard', 'click', copyLogsToClipboard);
 
   // Settings
-  elements.clearDataBtn.addEventListener('click', async () => {
+  safeBind('btn-clear-data', 'click', async () => {
     if (confirm('⚠️ 警告：這將會清除 IndexedDB 內所有成員與點名紀錄！確定要清除嗎？')) {
       await clearAllData();
       selectedMemberIds.clear();
@@ -1024,10 +1031,12 @@ function setupEventListeners() {
     }
   });
 
-  elements.thresholdInput.addEventListener('input', (e) => {
+  safeBind('threshold-input', 'input', (e) => {
     CONFIG.FACE_DISTANCE_THRESHOLD = parseFloat(e.target.value);
-    elements.thresholdValue.textContent = CONFIG.FACE_DISTANCE_THRESHOLD.toFixed(2);
-    if (elements.dbgThreshold) elements.dbgThreshold.textContent = CONFIG.FACE_DISTANCE_THRESHOLD.toFixed(2);
+    const valueEl = $('threshold-value');
+    const dbgEl = $('dbg-threshold');
+    if (valueEl) valueEl.textContent = CONFIG.FACE_DISTANCE_THRESHOLD.toFixed(2);
+    if (dbgEl) dbgEl.textContent = CONFIG.FACE_DISTANCE_THRESHOLD.toFixed(2);
     if (faceMatcher) {
       faceMatcher.distanceThreshold = CONFIG.FACE_DISTANCE_THRESHOLD;
     }

@@ -19,6 +19,15 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-sky-500 selection:text-white">
 
+  <!-- Global On-Screen Error Diagnostic Banner -->
+  <div id="global-error-banner" class="hidden sticky top-0 z-50 bg-rose-900/95 text-rose-100 px-4 py-2 text-xs font-mono font-bold flex justify-between items-center border-b border-rose-500 shadow-xl">
+    <div class="flex items-center space-x-2">
+      <span>⚠️ 系統告警：</span>
+      <span id="global-error-msg">--</span>
+    </div>
+    <button onclick="this.parentElement.classList.add('hidden')" class="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold">&times;</button>
+  </div>
+
   <!-- Top App Bar -->
   <header class="sticky top-0 z-40 glass-panel px-4 py-3 border-b border-slate-800 flex items-center justify-between">
     <div class="flex items-center space-x-2.5">
@@ -46,20 +55,6 @@
 
   <!-- Main Content Viewport -->
   <main class="flex-1 max-w-md w-full mx-auto p-4 space-y-4 mb-16">
-
-    <!-- Visual System Loading Progress Bar (Hidden by default after boot) -->
-    <div id="init-progress-container" class="glass-panel p-3 rounded-xl border border-sky-500/40 space-y-2 hidden">
-      <div class="flex justify-between items-center text-xs font-bold">
-        <span id="init-progress-status" class="text-sky-300 flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-          系統已就緒
-        </span>
-        <span id="init-progress-percent" class="text-sky-400 font-mono font-extrabold">100%</span>
-      </div>
-      <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-700">
-        <div id="init-progress-bar" class="bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400 h-full w-full transition-all duration-300"></div>
-      </div>
-    </div>
 
     <!-- TAB 1: REAL-TIME ATTENDANCE SCAN & BOARD -->
     <section id="tab-scan" class="tab-content space-y-4">
