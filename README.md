@@ -1,22 +1,38 @@
-# list - 離線人臉辨識點名與註冊系統 (list.daliuren.cc)
+# 點 - 離線點名與註冊系統 (list.daliuren.cc)
 
-高度優化於 **iPhone 13 Pro (iOS Safari / PWA)** 執行的 100% 離線人臉辨識與即時點名系統。專為 30 人以內之國外旅遊團體設計，無需網路即可實現即時人臉特徵提取、歐氏距離比對、時間戳記寫入與 CSV 紀錄匯出。
+高度優化於 **iPhone 13 Pro (iOS Safari / PWA)** 執行的 100% 離線國外旅遊點名與成員管理系統。專為 30 人以內之團體旅遊設計，具備強大離線快取、照片頭像註冊、一鍵點名看板、動態挑選對象與點名紀錄複製功能。
 
-## 🌟 系統亮點
+---
 
-1. **100% 完全離線 (PWA)**：
-   - 內建 `face-api.js` 與 Tiny Face Detector / Landmark / Recognition 離線模型權重檔。
-   - `service-worker.js` 使用 Cache-First 策略預快取所有靜態資源與模型檔，支援飛航模式下開機並流暢運行。
-2. **iOS Safari / iPhone 13 Pro 專屬優化**：
-   - 相機 `<video>` 標籤配置 `autoplay`, `playsinline`, `muted` 確保 Safari 相機流暢開鎖。
-   - Web Audio API 離線合成音效，完美繞過 iOS 靜音模式播放限制。
-3. **IndexedDB 離線資料庫**：
-   - 儲存成員姓名、臉部 128 維特徵向量 (`Float32Array`) 及點名歷史紀錄。
-4. **即時比對與防重複點名**：
-   - 0.52 歐氏距離閥值精準辨識，匹配成功發出提示音與視覺提示，並自動啟動 1.5 秒個人冷卻防止重複紀錄。
-   - 提供實時看板（紅綠標記）及手動點擊補點名備用機制。
-5. **本地 CSV 數據匯出**：
-   - 帶 UTF-8 BOM (`\uFEFF`) 標準編碼，點擊按鈕即可下載可直接在 iPhone Excel / Numbers 打開的點名表。
+## 🌟 系統核心特色
+
+1. **100% 完全離線 (PWA 架構)**：
+   - 專屬 App 標籤名稱為 **「點」**。
+   - `service-worker.js` (v4) 使用 Cache-First 快取策略，在完全沒有網路（飛航模式）下開機並順暢運行。
+
+2. **零模組依賴獨立引擎 (100% 設備相容)**：
+   - 採用原生單一封裝架構，無跨檔案 ES Module 載入卡關風險，在舊款 iOS Safari 與各類手機瀏覽器上皆可秒速載入。
+
+3. **相片頭像快速註冊與秒速點名**：
+   - 相機支援前後鏡頭切換 (`user` / `environment`)。
+   - 輸入姓名即可一鍵拍攝頭像圖片並寫入 IndexedDB 本地資料庫。
+   - 提供大字體高對比團員卡片，點擊卡片即可發出提示音並完成手動/即時點名。
+
+4. **動態用途/行程挑選點名對象 (🎯 挑選對象)**：
+   - 不受限於固定分組，提供「全選」、「全不選」與「自訂挑選」抽屜視窗。
+   - 可依不同旅遊行程（例：遊覽車上點名 15 人、晚餐集合 10 人）自由挑選點名名冊。
+
+5. **一鍵清空點名看板 (🧹 清空看板)**：
+   - 一鍵將看板紀錄重置為「未出席」狀態，方便前往下一個景點時開啟新一輪點名。
+
+6. **一鍵複製點名紀錄至剪貼簿 (📋 複製紀錄)**：
+   - 自動生成包含「已出席名單 (含點名時間)」與「未出席名單」之排版文字，可直接貼上至 LINE 或微信群組。
+
+7. **一鍵強制更新 PWA 網頁 (🔄 更新網頁)**：
+   - 提供硬體快取清除按鈕，秒速清空離線快取並載入最新版網站（團員資料安全保留）。
+
+8. **高對比暗黑介面設計 (High Contrast Dark Mode)**：
+   - 針對 iOS Safari 淺色模式控制項進行強制暗黑覆蓋 (`color-scheme: dark !important;`)，確保輸入框、按鈕與卡片文字清晰可見。
 
 ---
 
@@ -25,33 +41,29 @@
 ```
 d:\website\list\
 ├── index.html              # 主介面與 PWA App Shell
-├── manifest.json           # Web App Manifest 配置 (iOS PWA)
-├── service-worker.js       # PWA 離線快取的 Service Worker
+├── manifest.json           # Web App Manifest 配置 (Short Name: "點")
+├── service-worker.js       # PWA v4 離線 Service Worker
 ├── README.md
 ├── .gitignore
 ├── css/
-│   ├── tailwind.min.css    # 離線 Tailwind CSS
-│   └── custom.css          # iOS 佈局、玻璃擬態與辨識動畫
+│   ├── tailwind.min.css    # Tailwind CSS 核心樣式檔
+│   └── custom.css          # 高對比主題、iOS Safe-Area 與動畫
 ├── js/
-│   ├── face-api.min.js     # 離線 Face API 辨識引擎
-│   ├── db.js               # IndexedDB 封裝模組
-│   ├── sound.js            # Web Audio API 音效合成器
-│   └── app.js              # 主邏輯、相機控制與點名流程
-├── models/                 # 人臉辨識離線權重檔
-└── assets/                 # App 圖標與資源
+│   └── app.js              # 單一獨立應用程式核心邏輯與 IndexedDB 引擎
+└── assets/                 # PWA App Icon 圖標與資源 (icon.svg, icon-192, icon-512)
 ```
 
 ---
 
 ## 🚀 快速啟動與本地測試
 
-由於本專案為全前端純靜態網頁（含有 Service Worker 與 ES Modules），請使用本地 HTTP 伺服器開啟：
+使用本地 HTTP 伺服器開啟本專案：
 
 ```bash
-# 方法一：使用 Node.js http-server
+# 使用 Node.js http-server
 npx http-server ./ -p 8080
 
-# 方法二：使用 Python
+# 或使用 Python
 python -m http.server 8080
 ```
 
@@ -61,5 +73,9 @@ python -m http.server 8080
 
 ## 🌐 正式部署 (list.daliuren.cc)
 
-將本專案目錄下所有檔案直接上傳/部署至您的 Web 伺服器 (如 Cloudflare Pages, GitHub Pages, Vercel 或 Nginx)，並綁定 SSL 證書（HTTPS）即可。  
-*注意：iOS Safari 必須在 HTTPS 環境下才允許開啟 getUserMedia 相機權限與 PWA 功能。*
+本專案已被上傳並部署至 GitHub 儲存庫：  
+**https://github.com/stevecjs/list-web.git**
+
+正式域名部署於 **`https://list.daliuren.cc`**。
+
+*注意：iOS Safari 必須在 HTTPS 環境下才允許存取相機權限與安裝 PWA 主畫面小圖標。*
